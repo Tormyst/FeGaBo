@@ -1,0 +1,7 @@
+[package]
+name = "myst_gb"
+version = "0.1.0"
+authors = ["Tormyst <tormyst@github.com>"]
+
+[dependencies]
+sdl2 = "*"
