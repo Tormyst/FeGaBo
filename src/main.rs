@@ -63,16 +63,40 @@ pub fn main() {
             frame = 0;
         }
 
+        enum MODE_UPDATE {
+            ADD,
+            SUB,
+        }
+
         square_texture
             .with_lock(None, |buffer: &mut [u8], pitch: usize| {
                 let mut frame = frame as u8;
+                let mut mode = MODE_UPDATE::ADD;
                 for y in 0..GAMEBOY_HEIGHT as usize {
                     for x in 0..GAMEBOY_WIDTH as usize {
                         let offset = y * pitch + x * 3;
                         buffer[offset] = frame;
                         buffer[offset + 1] = frame;
                         buffer[offset + 2] = frame;
-                        frame = frame.wrapping_add(1);
+                        frame = match mode {
+                            MODE_UPDATE::ADD => {
+                                if frame == 255 {
+                                    mode = MODE_UPDATE::SUB;
+                                    frame
+                                } else {
+                                    frame + 1
+                                }
+                            }
+                            MODE_UPDATE::SUB => {
+                                if frame == 0 {
+                                    mode = MODE_UPDATE::ADD;
+                                    frame
+                                } else {
+                                    frame - 1
+                                }
+                            }
+                        }
+
                     }
                 }
             })
