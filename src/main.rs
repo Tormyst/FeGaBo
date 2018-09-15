@@ -13,6 +13,8 @@ const GAMEBOY_WIDTH: u32 = 160;
 const GAMEBOY_HEIGHT: u32 = 144;
 const RESOLUTION_MULTEPLYER: u32 = 4;
 
+mod gb;
+
 enum TextureType {
     Screen,
 }
@@ -61,7 +63,7 @@ impl Window {
             .unwrap()
     }
 
-    fn event_loop(mut self) {
+    fn event_loop(mut self, gbconnect: gb::GbConnect ) {
         let mut live_textures = Vec::new();
         live_textures.push((TextureType::Screen, Window::create_screen_internal(&self.texture_creator)));
         //self.create_screen();
@@ -120,5 +122,8 @@ impl Window {
 
 pub fn main() {
     let window = Window::new();
-    window.event_loop();
+
+    let gbconnect = gb::connect();
+
+    window.event_loop(gbconnect);
 }
