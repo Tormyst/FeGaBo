@@ -57,15 +57,17 @@ impl Window {
         }
     }
 
-    fn create_screen_internal<'a>(texture_creator: &'a TextureCreator<WindowContext>) -> Texture<'a> {
+    fn create_screen_internal<'a>(texture_creator: &'a TextureCreator<WindowContext>)
+                                  -> Texture<'a> {
         texture_creator
             .create_texture_streaming(PixelFormatEnum::RGB24, GAMEBOY_WIDTH, GAMEBOY_HEIGHT)
             .unwrap()
     }
 
-    fn event_loop(mut self, gbconnect: gb::GbConnect ) {
+    fn event_loop(mut self, gbconnect: gb::GbConnect) {
         let mut live_textures = Vec::new();
-        live_textures.push((TextureType::Screen, Window::create_screen_internal(&self.texture_creator)));
+        live_textures
+            .push((TextureType::Screen, Window::create_screen_internal(&self.texture_creator)));
         //self.create_screen();
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         let mut frame: u32 = 0;
@@ -85,22 +87,24 @@ impl Window {
                 frame = 0;
             }
 
-            for texture in &mut live_textures{
+            for texture in &mut live_textures {
                 match texture.0 {
-                    TextureType::Screen => { texture.1
-                .with_lock(None, |buffer: &mut [u8], pitch: usize| {
-                    let mut frame = frame as u8;
-                    for y in 0..GAMEBOY_HEIGHT as usize {
-                        for x in 0..GAMEBOY_WIDTH as usize {
-                            let offset = y * pitch + x * 3;
-                            buffer[offset] = frame;
-                            buffer[offset + 1] = frame;
-                            buffer[offset + 2] = frame;
-                            frame = frame.wrapping_add(1);
-                        }
-                    }
-                })
-                .unwrap();
+                    TextureType::Screen => {
+                        texture
+                            .1
+                            .with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                                let mut frame = frame as u8;
+                                for y in 0..GAMEBOY_HEIGHT as usize {
+                                    for x in 0..GAMEBOY_WIDTH as usize {
+                                        let offset = y * pitch + x * 3;
+                                        buffer[offset] = frame;
+                                        buffer[offset + 1] = frame;
+                                        buffer[offset + 2] = frame;
+                                        frame = frame.wrapping_add(1);
+                                    }
+                                }
+                            })
+                            .unwrap();
                     }
                 }
                 self.canvas.copy(&texture.1, None, None).unwrap();

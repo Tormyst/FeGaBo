@@ -2,23 +2,7 @@ use std::sync::mpsc;
 use std::thread;
 
 mod cpu;
-
-mod mem {
-    pub struct Mem {
-
-    }
-
-    impl Mem {
-        pub fn new() -> Mem {
-            Mem {}
-        }
-
-        pub fn load_8(&self, location: u16) -> u8 {
-            // Look value up in memory map
-            0
-        }
-    }
-}
+mod mem;
 
 enum GB_KIND {
     GB,
@@ -33,7 +17,7 @@ pub struct GbConnect {
 
 struct Gb {
     cpu: cpu::Cpu,
-    mem: mem::Mem,
+    mem: mem::Mem<mem::GbMapper>,
     to_main: mpsc::Sender<usize>,
     from_main: mpsc::Receiver<usize>,
 }
@@ -49,12 +33,19 @@ pub fn connect() -> GbConnect {
 
 impl Gb {
     fn new(kind: GB_KIND,
-    to_main: mpsc::Sender<usize>,
-    from_main: mpsc::Receiver<usize>,
-    ) -> Option<Gb> {
+           to_main: mpsc::Sender<usize>,
+           from_main: mpsc::Receiver<usize>)
+           -> Option<Gb> {
         match kind {
-            GB_KIND::GB => Some(Gb { cpu: cpu::Cpu::new(), mem: mem::Mem::new(), to_main, from_main }),
-            _ => None
+            GB_KIND::GB => {
+                Some(Gb {
+                         cpu: cpu::Cpu::new(),
+                         mem: mem::Mem::new(mem::GbMapper::new()),
+                         to_main,
+                         from_main,
+                     })
+            }
+            _ => None,
         }
     }
 

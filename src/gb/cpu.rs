@@ -28,7 +28,6 @@ enum Flags {
 }
 
 impl Cpu {
-
     pub fn new() -> Cpu {
         Cpu {
             a: 0,
@@ -44,12 +43,12 @@ impl Cpu {
         }
     }
 
-    pub fn cycle(&mut self, mem: &mut mem::Mem) {
+    pub fn cycle<T: mem::MemMapper>(&mut self, mem: &mut mem::Mem<T>) {
         let opcode = self.load_pc_8(mem);
         println!("Executing 0x{:04X}: 0x{:02X}", self.pc - 1, opcode);
     }
 
-    fn load_pc_8(&mut self, mem: &mem::Mem) -> u8 {
+    fn load_pc_8<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u8 {
         // Memory load
         let ret = mem.load_8(self.pc);
         self.pc += 1;
@@ -57,8 +56,7 @@ impl Cpu {
     }
 
     fn read_16(&self, reg: WordRegister) -> u16 {
-        let (high, low) =
-        match reg {
+        let (high, low) = match reg {
             WordRegister::AF => (self.a, self.f),
             WordRegister::BC => (self.b, self.c),
             WordRegister::DE => (self.d, self.e),
