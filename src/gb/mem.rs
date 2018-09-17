@@ -5,27 +5,39 @@ pub trait MemMapper {
     fn write(&mut self, addr: u16, data: u8) -> bool;
 }
 
-mod CM {
-
+mod cm {
     pub trait CartrageMapper {
-        fn read(&self, addr: u16) -> u8;
+        fn read(&self, addr: u16) -> Option<u8>;
         fn write(&mut self, addr: u16, data: u8) -> bool;
     }
 
     pub struct NoneCartrageMapper {}
 
     impl CartrageMapper for NoneCartrageMapper {
-        fn read(&self, addr: u16) -> u8 {
-            0
+        fn read(&self, addr: u16) -> Option<u8> {
+            None
         }
         fn write(&mut self, addr: u16, data: u8) -> bool {
             false
         }
     }
-
 }
 
-trait BootRom {}
+struct BootRom {
+    rom: Vec<u8>,
+}
+
+impl BootRom {
+    fn new(boot: Vec<u8>) -> Self {
+        BootRom { rom: boot }
+    }
+    fn read(&self, addr: u16) -> Option<u8> {
+        None
+    }
+    fn write(&mut self, addr: u16, data: u8) -> bool {
+       false 
+    }
+}
 
 struct Oam {}
 
@@ -36,8 +48,8 @@ pub struct Mem<T: MemMapper> {
 }
 
 pub struct GbMapper {
-    cartrage: Box<CM::CartrageMapper>,
-    boot_rom: Option<Box<BootRom>>,
+    cartrage: Box<cm::CartrageMapper>,
+    boot_rom: BootRom,
     vram: [u8; kb_8],
     wram: [u8; kb_8],
     oam: Oam,
@@ -49,8 +61,8 @@ pub struct GbMapper {
 impl GbMapper {
     pub fn new() -> Self {
         GbMapper {
-            cartrage: Box::new(CM::NoneCartrageMapper {}),
-            boot_rom: None,
+            cartrage: Box::new(cm::NoneCartrageMapper {}),
+            boot_rom: BootRom::new(vec![]),
             vram: [0; kb_8],
             wram: [0; kb_8],
             oam: Oam {},
@@ -63,7 +75,15 @@ impl GbMapper {
 
 impl MemMapper for GbMapper {
     fn read(&self, addr: u16) -> Option<u8> {
-        None
+        // Boot rom overlay
+        if let Some(data) = self.boot_rom.read(addr) {
+                return Some(data);
+        }
+        // Main table
+        match addr {
+            0x0000...0x7fff => (*self.cartrage).read(addr),
+            _ => None,
+        }
     }
     fn write(&mut self, addr: u16, data: u8) -> bool {
         false
@@ -75,8 +95,11 @@ impl<T: MemMapper> Mem<T> {
         Mem { map_holder: mapper }
     }
 
-    pub fn load_8(&self, location: u16) -> u8 {
+    pub fn load_8(&self, addr: u16) -> u8 {
         // Look value up in memory map
-        0
+        match self.map_holder.read(addr) {
+            Some(data) => data,
+            None => {println!("Memory read failed for address: {}.  Fallback to 0", addr); 0}
+        }
     }
 }
