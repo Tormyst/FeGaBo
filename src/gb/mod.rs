@@ -1,17 +1,7 @@
 use std::sync::mpsc;
 use std::thread;
 
-mod cpu {
-    pub struct Cpu {
-
-    }
-
-    impl Cpu {
-        pub fn new() -> Cpu {
-            Cpu {}
-        }
-    }
-}
+mod cpu;
 
 mod mem {
     pub struct Mem {
@@ -21,6 +11,11 @@ mod mem {
     impl Mem {
         pub fn new() -> Mem {
             Mem {}
+        }
+
+        pub fn load_8(&self, location: u16) -> u8 {
+            // Look value up in memory map
+            0
         }
     }
 }
@@ -44,7 +39,7 @@ struct Gb {
 }
 
 pub fn connect() -> GbConnect {
-    let (to_gb, from_main) = mpsc::channel(); 
+    let (to_gb, from_main) = mpsc::channel();
     let (to_main, from_gb) = mpsc::channel();
 
     thread::spawn(move || { Gb::new(GB_KIND::GB, to_main, from_main).unwrap().cycle(); });
@@ -53,7 +48,7 @@ pub fn connect() -> GbConnect {
 }
 
 impl Gb {
-    fn new(kind: GB_KIND, 
+    fn new(kind: GB_KIND,
     to_main: mpsc::Sender<usize>,
     from_main: mpsc::Receiver<usize>,
     ) -> Option<Gb> {
@@ -63,7 +58,10 @@ impl Gb {
         }
     }
 
-    fn cycle(self) {
+    fn cycle(mut self) {
         println!("Everything is set up!!!!");
+        loop {
+            self.cpu.cycle(&mut self.mem);
+        }
     }
 }
