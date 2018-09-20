@@ -1,3 +1,3 @@
-# Myst gb
+# FeGaBo
 
 A gameboy emulator writen in rust.
