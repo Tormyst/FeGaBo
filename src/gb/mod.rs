@@ -40,7 +40,8 @@ impl Gb {
             GB_KIND::GB => {
                 Some(Gb {
                          cpu: cpu::Cpu::new(),
-                         mem: mem::Mem::new(mem::GbMapper::new()),
+                         mem: mem::Mem::new(mem::GbMapper::new_with_boot_rom("assets/rom/dmg_rom.gb"
+                                                                                 .to_string())),
                          to_main,
                          from_main,
                      })

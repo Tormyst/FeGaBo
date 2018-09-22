@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::Read;
+
 const kb_8: usize = 0x2000;
 
 pub trait MemMapper {
@@ -32,10 +35,13 @@ impl BootRom {
         BootRom { rom: boot }
     }
     fn read(&self, addr: u16) -> Option<u8> {
-        None
+        match self.rom.get(addr as usize) {
+            Some(data) => Some(*data as u8),
+            None => None,
+        }
     }
     fn write(&mut self, addr: u16, data: u8) -> bool {
-       false 
+        false
     }
 }
 
@@ -71,13 +77,33 @@ impl GbMapper {
             ie: 0,
         }
     }
+
+    pub fn new_with_boot_rom(boot_rom: String) -> Self {
+        let mut buffer = Vec::new();
+        let boot_size = File::open(boot_rom)
+            .unwrap()
+            .read_to_end(&mut buffer)
+            .unwrap();
+        println!("Boot rom loaded: {:x} bytes long", boot_size);
+
+        GbMapper {
+            cartrage: Box::new(cm::NoneCartrageMapper {}),
+            boot_rom: BootRom::new(buffer),
+            vram: [0; kb_8],
+            wram: [0; kb_8],
+            oam: Oam {},
+            io: Io {},
+            hram: [0; 126],
+            ie: 0,
+        }
+    }
 }
 
 impl MemMapper for GbMapper {
     fn read(&self, addr: u16) -> Option<u8> {
         // Boot rom overlay
         if let Some(data) = self.boot_rom.read(addr) {
-                return Some(data);
+            return Some(data);
         }
         // Main table
         match addr {
@@ -99,7 +125,11 @@ impl<T: MemMapper> Mem<T> {
         // Look value up in memory map
         match self.map_holder.read(addr) {
             Some(data) => data,
-            None => {println!("Memory read failed for address: {}.  Fallback to 0", addr); 0}
+            None => {
+                println!("Memory read failed for address: {:04x}.  Fallback to 0",
+                         addr);
+                0
+            }
         }
     }
 }
