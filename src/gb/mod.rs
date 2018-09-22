@@ -11,8 +11,8 @@ enum GB_KIND {
 }
 
 pub struct GbConnect {
-    to_gb: mpsc::Sender<usize>,
-    from_gb: mpsc::Receiver<usize>,
+    pub to_gb: mpsc::Sender<usize>,
+    pub from_gb: mpsc::Receiver<usize>,
 }
 
 struct Gb {

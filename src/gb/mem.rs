@@ -132,4 +132,13 @@ impl<T: MemMapper> Mem<T> {
             }
         }
     }
+
+    pub fn load_16(&self, addr: u16) -> u16 {
+        // Look value up in memory map
+
+        let high: u16 = self.load_8(addr) as u16;
+        let low: u16 = self.load_8(addr + 1) as u16;
+
+        (high << 8) + low
+    }
 }

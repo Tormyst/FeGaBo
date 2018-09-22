@@ -81,6 +81,19 @@ impl Window {
                     _ => {}
                 }
             }
+            use std::sync::mpsc::TryRecvError;
+
+            match gbconnect.from_gb.try_recv() {
+                Ok(event) => {}
+                Err(err) => {
+                    match err {
+                        TryRecvError::Disconnected => {
+                            panic!("CPU halted unexpectedly.");
+                        }
+                        _ => {}
+                    };
+                }
+            }
 
             // Sample update tester
             if frame >= 255 {

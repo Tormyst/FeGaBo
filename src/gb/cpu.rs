@@ -1,5 +1,7 @@
 use super::mem;
+use std::fmt::Debug;
 
+#[derive(Debug)]
 pub struct Cpu {
     a: u8,
     b: u8,
@@ -11,6 +13,17 @@ pub struct Cpu {
     f: u8,
     sp: u16,
     pc: u16,
+}
+
+enum ByteRegister {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    F,
 }
 
 enum WordRegister {
@@ -46,6 +59,21 @@ impl Cpu {
     pub fn cycle<T: mem::MemMapper>(&mut self, mem: &mut mem::Mem<T>) {
         let opcode = self.load_pc_8(mem);
         println!("Executing 0x{:04X}: 0x{:02X}", self.pc - 1, opcode);
+        let time = match opcode {
+            0x31 => {
+                self.sp = self.load_pc_16(mem);
+                12
+            }
+            0xAF => {
+                self.a = self.xor(ByteRegister::A, ByteRegister::A);
+                4
+            }
+            _ => {
+                panic!("Unknown instruction {:02X} was not implemented, dump of cpu: {:?}",
+                       opcode,
+                       self)
+            }
+        };
     }
 
     fn load_pc_8<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u8 {
@@ -53,6 +81,26 @@ impl Cpu {
         let ret = mem.load_8(self.pc);
         self.pc += 1;
         ret
+    }
+
+    fn load_pc_16<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u16 {
+        // Memory load
+        let ret = mem.load_16(self.pc);
+        self.pc += 2;
+        ret
+    }
+
+    fn read_8(&self, reg: ByteRegister) -> u8 {
+        match reg {
+            ByteRegister::A => self.a,
+            ByteRegister::B => self.b,
+            ByteRegister::C => self.c,
+            ByteRegister::D => self.d,
+            ByteRegister::E => self.e,
+            ByteRegister::H => self.h,
+            ByteRegister::L => self.l,
+            ByteRegister::F => self.f,
+        }
     }
 
     fn read_16(&self, reg: WordRegister) -> u16 {
@@ -65,6 +113,16 @@ impl Cpu {
         ((high as u16) << 8) | low as u16
     }
 
+    fn xor(&mut self, reg1: ByteRegister, reg2: ByteRegister) -> u8 {
+        let val = self.read_8(reg1) ^ self.read_8(reg2);
+        self.set_flag(Flags::Z, val == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, false);
+        val
+    }
+
+
     fn read_flag(&self, flag: Flags) -> bool {
         let mask = match flag {
             Flags::Z => 1 << 7,
@@ -73,5 +131,19 @@ impl Cpu {
             Flags::C => 1 << 4,
         };
         mask & self.f != 0
+    }
+
+    fn set_flag(&mut self, flag: Flags, val: bool) {
+        let mask = match flag {
+            Flags::Z => 1 << 7,
+            Flags::N => 1 << 6,
+            Flags::H => 1 << 5,
+            Flags::C => 1 << 4,
+        };
+        match val {
+            true => self.f |= mask,
+            false => self.f &= !mask,
+
+        }
     }
 }
