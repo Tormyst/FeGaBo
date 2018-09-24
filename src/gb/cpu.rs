@@ -1,4 +1,6 @@
+use std::fmt;
 use super::mem;
+use super::mem::Mem;
 use std::fmt::Debug;
 
 #[derive(Debug)]
@@ -40,6 +42,93 @@ enum Flags {
     C,
 }
 
+struct Inst {
+    opcode: u8,
+    formater: fn(u8, u16) -> String,
+    execute: fn(&mut Cpu, &mut Mem, u8, u16) -> usize,
+    operand_8: u8,
+    operand_16: u16,
+}
+
+macro_rules! i {
+    ($op:expr, $f:expr, $i:expr) => {
+        (Inst {
+            opcode: $op,
+            formater: |_x, _y|{
+                format!($f)
+            },
+            execute: $i,
+            operand_8: 0,
+            operand_16: 0,
+        }, 1)
+    }
+}
+
+macro_rules! i_8 {
+    ($op:expr, $f:expr, $i:expr, $x:expr) => {
+        (Inst {
+            opcode: $op,
+            formater: |op, _|{
+                format!($f, op)
+            },
+            execute: $i,
+            operand_8: $x,
+            operand_16: 0,
+        }, 2)
+    }
+}
+macro_rules! i_16 {
+    ($op:expr, $f:expr, $i:expr, $x:expr) => {
+        (Inst {
+            opcode: $op,
+            formater: |_, op|{
+                format!($f, op)
+            },
+            execute: $i,
+            operand_8: 0,
+            operand_16: $x,
+        }, 3)
+    }
+}
+
+impl Inst {
+    fn load_opcode(addr: u16, mem: &Mem) -> (Self, u16) {
+        let o = mem.load_8(addr);
+        match o {
+            0x31 => {
+                i_16!(o,
+                      "LD SP, 0x{:04X}",
+                      |cpu, mem, _, op| {
+                          cpu.sp = op;
+                          12
+                      },
+                      mem.load_16(addr + 1))
+            }
+            0xAF => {
+                i!(o, "XOR A", |cpu, mem, _, _| {
+                    cpu.a = cpu.xor(ByteRegister::A, ByteRegister::A);
+                    4
+                })
+            }
+            _ => panic!("Unknown instruction {:02X} was not implemented", o),
+        }
+    }
+
+    fn run(&mut self, cpu: &mut Cpu, mem: &mut Mem) -> usize {
+        (self.execute)(cpu, mem, self.operand_8, self.operand_16)
+    }
+}
+
+impl fmt::Display for Inst {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+               "0x{:02X}: {}",
+               self.opcode,
+               (self.formater)(self.operand_8, self.operand_16))
+    }
+}
+
+
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
@@ -56,34 +145,21 @@ impl Cpu {
         }
     }
 
-    pub fn cycle<T: mem::MemMapper>(&mut self, mem: &mut mem::Mem<T>) {
-        let opcode = self.load_pc_8(mem);
-        println!("Executing 0x{:04X}: 0x{:02X}", self.pc - 1, opcode);
-        let time = match opcode {
-            0x31 => {
-                self.sp = self.load_pc_16(mem);
-                12
-            }
-            0xAF => {
-                self.a = self.xor(ByteRegister::A, ByteRegister::A);
-                4
-            }
-            _ => {
-                panic!("Unknown instruction {:02X} was not implemented, dump of cpu: {:?}",
-                       opcode,
-                       self)
-            }
-        };
+    pub fn cycle(&mut self, mem: &mut Mem) {
+        // let opcode = self.load_pc_8(mem);
+        let (opcode, inst_size) = Inst::load_opcode(self.pc, mem);
+        println!("Executing 0x{:04X}: {}", self.pc, opcode);
+        self.pc += inst_size;
     }
 
-    fn load_pc_8<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u8 {
+    fn load_pc_8(&mut self, mem: &Mem) -> u8 {
         // Memory load
         let ret = mem.load_8(self.pc);
         self.pc += 1;
         ret
     }
 
-    fn load_pc_16<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u16 {
+    fn load_pc_16(&mut self, mem: &Mem) -> u16 {
         // Memory load
         let ret = mem.load_16(self.pc);
         self.pc += 2;

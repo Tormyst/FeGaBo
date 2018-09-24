@@ -49,8 +49,8 @@ struct Oam {}
 
 struct Io {}
 
-pub struct Mem<T: MemMapper> {
-    map_holder: T,
+pub struct Mem {
+    map_holder: Box<MemMapper>,
 }
 
 pub struct GbMapper {
@@ -116,9 +116,9 @@ impl MemMapper for GbMapper {
     }
 }
 
-impl<T: MemMapper> Mem<T> {
-    pub fn new(mapper: T) -> Self {
-        Mem { map_holder: mapper }
+impl Mem {
+    pub fn new_gb(mapper: GbMapper) -> Self {
+        Mem { map_holder: Box::new(mapper) }
     }
 
     pub fn load_8(&self, addr: u16) -> u8 {
