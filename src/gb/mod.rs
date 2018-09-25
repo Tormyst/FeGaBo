@@ -3,6 +3,7 @@ use std::thread;
 
 mod cpu;
 mod mem;
+mod disassemble;
 
 enum GB_KIND {
     GB,

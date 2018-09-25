@@ -1,5 +1,6 @@
 use super::mem;
 use std::fmt::Debug;
+use super::disassemble;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -56,10 +57,8 @@ impl Cpu {
         }
     }
 
-    pub fn cycle(&mut self, mem: &mut mem::Mem) {
-        let opcode = self.load_pc_8(mem);
-        println!("Executing 0x{:04X}: 0x{:02X}", self.pc - 1, opcode);
-        let time = match opcode {
+    fn execute(&mut self, opcode: u8, mem: &mut mem::Mem) -> usize {
+        match opcode {
             0x31 => {
                 self.sp = self.load_pc_16(mem);
                 12
@@ -73,7 +72,17 @@ impl Cpu {
                        opcode,
                        self)
             }
-        };
+        }
+    }
+
+    pub fn cycle(&mut self, mem: &mut mem::Mem) {
+        // Load opcode
+        let opcode = self.load_pc_8(mem);
+        // Print disassemble
+        print!("Executing 0x{:04X}: 0x{:02X} ", self.pc - 1, opcode);
+        disassemble::daInst(self.pc - 1, mem);
+        // Execute
+        let time = self.execute(opcode, mem);
     }
 
     fn load_pc_8(&mut self, mem: &mem::Mem) -> u8 {
