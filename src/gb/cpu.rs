@@ -56,7 +56,7 @@ impl Cpu {
         }
     }
 
-    pub fn cycle<T: mem::MemMapper>(&mut self, mem: &mut mem::Mem<T>) {
+    pub fn cycle(&mut self, mem: &mut mem::Mem) {
         let opcode = self.load_pc_8(mem);
         println!("Executing 0x{:04X}: 0x{:02X}", self.pc - 1, opcode);
         let time = match opcode {
@@ -76,14 +76,14 @@ impl Cpu {
         };
     }
 
-    fn load_pc_8<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u8 {
+    fn load_pc_8(&mut self, mem: &mem::Mem) -> u8 {
         // Memory load
         let ret = mem.load_8(self.pc);
         self.pc += 1;
         ret
     }
 
-    fn load_pc_16<T: mem::MemMapper>(&mut self, mem: &mem::Mem<T>) -> u16 {
+    fn load_pc_16(&mut self, mem: &mem::Mem) -> u16 {
         // Memory load
         let ret = mem.load_16(self.pc);
         self.pc += 2;
