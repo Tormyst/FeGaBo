@@ -84,7 +84,7 @@ impl GbMapper {
             .unwrap()
             .read_to_end(&mut buffer)
             .unwrap();
-        println!("Boot rom loaded: {:x} bytes long", boot_size);
+        println!("Boot rom loaded: {:X} bytes long", boot_size);
 
         GbMapper {
             cartrage: Box::new(cm::NoneCartrageMapper {}),
@@ -107,12 +107,20 @@ impl MemMapper for GbMapper {
         }
         // Main table
         match addr {
-            0x0000...0x7fff => (*self.cartrage).read(addr),
+            0x0000...0x7FFF => (*self.cartrage).read(addr),
             _ => None,
         }
     }
     fn write(&mut self, addr: u16, data: u8) -> bool {
-        false
+        match self.boot_rom.write(addr, data) {
+            true => true,
+            false=> match addr {
+                // Main table
+                0x0000...0x7FFF => (*self.cartrage).write(addr, data),
+                0x8000...0x9FFF => {self.vram[addr as usize - 0x8000] = data; true},
+                _ => false,
+            }
+        }
     }
 }
 
@@ -126,10 +134,18 @@ impl Mem {
         match self.map_holder.read(addr) {
             Some(data) => data,
             None => {
-                println!("Memory read failed for address: {:04x}.  Fallback to 0",
+                println!("Memory read failed for address: {:04X}.  Fallback to 0",
                          addr);
                 0
             }
+        }
+    }
+
+    pub fn write_8(&mut self, addr: u16, data: u8) {
+        // Look value up in memory map
+        match self.map_holder.write(addr, data) {
+            true => {},
+            false => println!("Memory write failed for address: {:04X}", addr),
         }
     }
 

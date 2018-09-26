@@ -66,6 +66,10 @@ impl Cpu {
                 self.b = self.load_pc_8(mem);
                 12
             }
+            0x02 => {
+                mem.write_8(self.read_16(WordRegister::BC), self.a);
+                8
+            }
             0x0A => {
                 self.a = mem.load_8(self.read_16(WordRegister::BC));
                 8
@@ -74,6 +78,10 @@ impl Cpu {
                 self.e = self.load_pc_8(mem);
                 self.d = self.load_pc_8(mem);
                 12
+            }
+            0x12 => {
+                mem.write_8(self.read_16(WordRegister::DE), self.a);
+                8
             }
             0x1A => {
                 self.a = mem.load_8(self.read_16(WordRegister::DE));
@@ -84,6 +92,10 @@ impl Cpu {
                 self.h = self.load_pc_8(mem);
                 12
             }
+            0x22 => {
+                mem.write_8(self.read_16(WordRegister::HLI), self.a);
+                8
+            }
             0x2A => {
                 self.a = mem.load_8(self.read_16(WordRegister::HLI));
                 8
@@ -91,6 +103,10 @@ impl Cpu {
             0x31 => {
                 self.sp = self.load_pc_16(mem);
                 12
+            }
+            0x32 => {
+                mem.write_8(self.read_16(WordRegister::HLD), self.a);
+                8
             }
             0x3A => {
                 self.a = mem.load_8(self.read_16(WordRegister::HLD));
