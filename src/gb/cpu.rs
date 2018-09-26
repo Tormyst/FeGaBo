@@ -32,6 +32,8 @@ enum WordRegister {
     BC,
     DE,
     HL,
+    HLI,
+    HLD,
 }
 
 enum Flags {
@@ -59,16 +61,47 @@ impl Cpu {
 
     fn execute(&mut self, opcode: u8, mem: &mut mem::Mem) -> usize {
         match opcode {
+            0x01 => {
+                self.c = self.load_pc_8(mem);
+                self.b = self.load_pc_8(mem);
+                12
+            }
+            0x0A => {
+                self.a = mem.load_8(self.read_16(WordRegister::BC));
+                8
+            }
+            0x11 => {
+                self.e = self.load_pc_8(mem);
+                self.d = self.load_pc_8(mem);
+                12
+            }
+            0x1A => {
+                self.a = mem.load_8(self.read_16(WordRegister::DE));
+                8
+            }
+            0x21 => {
+                self.l = self.load_pc_8(mem);
+                self.h = self.load_pc_8(mem);
+                12
+            }
+            0x2A => {
+                self.a = mem.load_8(self.read_16(WordRegister::HLI));
+                8
+            }
             0x31 => {
                 self.sp = self.load_pc_16(mem);
                 12
+            }
+            0x3A => {
+                self.a = mem.load_8(self.read_16(WordRegister::HLD));
+                8
             }
             0xAF => {
                 self.a = self.xor(ByteRegister::A, ByteRegister::A);
                 4
             }
             _ => {
-                panic!("Unknown instruction {:02X} was not implemented, dump of cpu: {:?}",
+                panic!("Unknown instruction {:02X} was not implemented, dump of cpu: {:X?}",
                        opcode,
                        self)
             }
@@ -112,14 +145,30 @@ impl Cpu {
         }
     }
 
-    fn read_16(&self, reg: WordRegister) -> u16 {
+    fn read_16(&mut self, reg: WordRegister) -> u16 {
         let (high, low) = match reg {
             WordRegister::AF => (self.a, self.f),
             WordRegister::BC => (self.b, self.c),
             WordRegister::DE => (self.d, self.e),
-            WordRegister::HL => (self.h, self.l),
+            WordRegister::HL | WordRegister::HLI | WordRegister::HLD => (self.h, self.l),
         };
-        ((high as u16) << 8) | low as u16
+        let retVal = ((high as u16) << 8) | low as u16;
+        match reg {
+            WordRegister::HLI => self.write_16(reg, retVal + 1),
+            WordRegister::HLD => self.write_16(reg, retVal - 1),
+            _ => {},
+        }
+        retVal
+    }
+
+    fn write_16(&mut self, reg: WordRegister, val: u16) {
+        let (high, low) = ((val >> 8) as u8, val as u8);
+            match reg {
+            WordRegister::AF => {self.a = high; self.f = low},
+            WordRegister::BC => {self.b = high; self.c = low},
+            WordRegister::DE => {self.d = high; self.e = low},
+            WordRegister::HL | WordRegister::HLI | WordRegister::HLD => {self.h = high; self.l = low},
+        };
     }
 
     fn xor(&mut self, reg1: ByteRegister, reg2: ByteRegister) -> u8 {
