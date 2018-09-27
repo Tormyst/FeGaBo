@@ -1,8 +1,8 @@
+use super::decode;
+use super::decode::{ByteR, Flag, Op, WordR};
+use super::disassemble;
 use super::mem;
 use std::fmt::Debug;
-use super::disassemble;
-use super::decode::{ByteR, WordR, Flag, Op};
-use super::decode;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -100,15 +100,20 @@ impl Cpu {
         }
     }
     */
-    
 
     fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem) {
         match opcode {
-            Op::NOP => {},
-            Op::LD8(o1, o2) => {let data = self.read_8(o2, mem); self.write_8(o1, data, mem)},
-            Op::LD16(o1, o2) => {let data = self.read_16(o2); self.write_16(o1, data)},
-            Op::XOR(o) => {self.xor(o,mem)},
-            _ => panic!("Instruction {} not implemented.", opcode)
+            Op::NOP => {}
+            Op::LD8(o1, o2) => {
+                let data = self.read_8(o2, mem);
+                self.write_8(o1, data, mem)
+            }
+            Op::LD16(o1, o2) => {
+                let data = self.read_16(o2);
+                self.write_16(o1, data)
+            }
+            Op::XOR(o) => self.xor(o, mem),
+            _ => panic!("Instruction {} not implemented.", opcode),
         }
     }
 
@@ -161,20 +166,23 @@ impl Cpu {
             WordR::SP => self.sp,
             WordR::PC => self.pc,
             WordR::IMM(data) => data,
+            WordR::HighC => 0xFF00 | (self.c as u16),
             _ => {
                 let (high, low) = match reg {
                     WordR::AF => (self.a, self.f),
                     WordR::BC => (self.b, self.c),
                     WordR::DE => (self.d, self.e),
                     WordR::HL | WordR::HLI | WordR::HLD => (self.h, self.l),
-                    _ => unreachable!("All cases not handled here should have already been handled"),
+                    _ => {
+                        unreachable!("All cases not handled here should have already been handled")
+                    }
                 };
                 let retVal = ((high as u16) << 8) | low as u16;
                 // Post read operation for increment and decrement
                 match reg {
                     WordR::HLI => self.write_16(reg, retVal + 1),
                     WordR::HLD => self.write_16(reg, retVal - 1),
-                    _ => {},
+                    _ => {}
                 }
                 retVal
             }
@@ -186,11 +194,23 @@ impl Cpu {
         match reg {
             WordR::SP => self.sp = val,
             WordR::PC => self.pc = val,
-            WordR::AF => {self.a = high; self.f = low},
-            WordR::BC => {self.b = high; self.c = low},
-            WordR::DE => {self.d = high; self.e = low},
-            WordR::HL | WordR::HLI | WordR::HLD => {self.h = high; self.l = low},
-            WordR::IMM(_) => panic!("You cannot write to a immediate value"),
+            WordR::AF => {
+                self.a = high;
+                self.f = low
+            }
+            WordR::BC => {
+                self.b = high;
+                self.c = low
+            }
+            WordR::DE => {
+                self.d = high;
+                self.e = low
+            }
+            WordR::HL | WordR::HLI | WordR::HLD => {
+                self.h = high;
+                self.l = low
+            }
+            _ => panic!("You cannot write to a read only word"),
         };
     }
 
@@ -202,7 +222,6 @@ impl Cpu {
         self.set_flag(Flag::H, false);
         self.set_flag(Flag::C, false);
     }
-
 
     fn read_flag(&self, flag: Flag) -> bool {
         let mask = match flag {
@@ -224,7 +243,6 @@ impl Cpu {
         match val {
             true => self.f |= mask,
             false => self.f &= !mask,
-
         }
     }
 }
