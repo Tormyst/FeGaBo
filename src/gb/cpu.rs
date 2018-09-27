@@ -34,85 +34,26 @@ impl Cpu {
         }
     }
 
-    /*
-    fn execute(&mut self, opcode: u8, mem: &mut mem::Mem) -> usize {
-        match opcode {
-            0x01 => {
-                self.c = self.load_pc_8(mem);
-                self.b = self.load_pc_8(mem);
-                12
-            }
-            0x02 => {
-                mem.write_8(self.read_16(WordR::BC), self.a);
-                8
-            }
-            0x0A => {
-                self.a = mem.load_8(self.read_16(WordR::BC));
-                8
-            }
-            0x11 => {
-                self.e = self.load_pc_8(mem);
-                self.d = self.load_pc_8(mem);
-                12
-            }
-            0x12 => {
-                mem.write_8(self.read_16(WordR::DE), self.a);
-                8
-            }
-            0x1A => {
-                self.a = mem.load_8(self.read_16(WordR::DE));
-                8
-            }
-            0x21 => {
-                self.l = self.load_pc_8(mem);
-                self.h = self.load_pc_8(mem);
-                12
-            }
-            0x22 => {
-                mem.write_8(self.read_16(WordR::HLI), self.a);
-                8
-            }
-            0x2A => {
-                self.a = mem.load_8(self.read_16(WordR::HLI));
-                8
-            }
-            0x31 => {
-                self.sp = self.load_pc_16(mem);
-                12
-            }
-            0x32 => {
-                mem.write_8(self.read_16(WordR::HLD), self.a);
-                8
-            }
-            0x3A => {
-                self.a = mem.load_8(self.read_16(WordR::HLD));
-                8
-            }
-            0xAF => {
-                self.xor(ByteR::A, mem);
-                4
-            }
-            _ => {
-                panic!("Unknown instruction {:02X} was not implemented, dump of cpu: {:X?}",
-                       opcode,
-                       self)
-            }
-        }
-    }
-    */
-
     fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem) {
+        use gb::decode::Op::*;
         match opcode {
-            Op::NOP => {}
-            Op::LD8(o1, o2) => {
+            NOP => {}
+
+            LD8(o1, o2) => {
                 let data = self.read_8(o2, mem);
                 self.write_8(o1, data, mem)
             }
-            Op::LD16(o1, o2) => {
+            LD16(o1, o2) => {
                 let data = self.read_16(o2);
                 self.write_16(o1, data)
             }
-            Op::XOR(o) => self.xor(o, mem),
+
+            XOR(o) => self.xor(o, mem),
+            
+            JR(fl, o) => self.jr(fl, o, mem),
+
+            BIT(n, o) => self.bit(n, o, mem),
+            
             _ => panic!("Instruction {} not implemented.", opcode),
         }
     }
@@ -167,6 +108,7 @@ impl Cpu {
             WordR::PC => self.pc,
             WordR::IMM(data) => data,
             WordR::HighC => 0xFF00 | (self.c as u16),
+            WordR::High(op) => 0xFF00 | (op as u16),
             _ => {
                 let (high, low) = match reg {
                     WordR::AF => (self.a, self.f),
@@ -214,6 +156,13 @@ impl Cpu {
         };
     }
 
+    fn flagCondition(&self, fl: decode::OptFlag) -> bool{
+        match fl {
+            decode::OptFlag(None) => true,
+            decode::OptFlag(Some((flag, state))) => self.read_flag(flag) == state,
+        }
+    }
+
     fn xor(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         self.a = self.read_8(reg, mem) ^ self.a;
         let zero = self.a == 0;
@@ -222,6 +171,20 @@ impl Cpu {
         self.set_flag(Flag::H, false);
         self.set_flag(Flag::C, false);
     }
+
+    fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem){
+        if self.flagCondition(fl) {
+            self.pc = self.pc.wrapping_add(o as u16);
+        }
+    }
+
+    fn bit(&mut self, n: u8, reg: ByteR, mem: &mut mem::Mem) {
+        let zero = self.read_8(reg, mem) & (0x1 << n) == 0;
+        self.set_flag(Flag::Z, zero);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+    }
+
 
     fn read_flag(&self, flag: Flag) -> bool {
         let mask = match flag {
