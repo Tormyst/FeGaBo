@@ -108,7 +108,7 @@ impl Cpu {
             Op::LD8(o1, o2) => {let data = self.read_8(o2, mem); self.write_8(o1, data, mem)},
             Op::LD16(o1, o2) => {let data = self.read_16(o2); self.write_16(o1, data)},
             Op::XOR(o) => {self.xor(o,mem)},
-            _ => panic!("Instruction {} not implemented.")
+            _ => panic!("Instruction {} not implemented.", opcode)
         }
     }
 
@@ -117,7 +117,7 @@ impl Cpu {
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
 
         // Print disassemble
-        println!("Executing 0x{:04X}: 0x{}\t{}", self.pc, instruction, opcode);
+        println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
 
         //Increment PC
         self.pc += op_size;
