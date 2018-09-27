@@ -39,6 +39,17 @@ impl Cpu {
         match opcode {
             NOP => {}
 
+            RET(fl) => self.ret(fl, mem),
+            CALL(fl, o) => self.call(fl, o, mem),
+
+            PUSH(o) => {
+                let data = self.read_16(o);
+                self.push(data, mem)
+            }
+            POP(o) => {
+                let data = self.pop(mem);
+                self.write_16(o, data);
+            }
             LD8(o1, o2) => {
                 let data = self.read_8(o2, mem);
                 self.write_8(o1, data, mem)
@@ -49,11 +60,11 @@ impl Cpu {
             }
 
             XOR(o) => self.xor(o, mem),
-            
+
             JR(fl, o) => self.jr(fl, o, mem),
 
             BIT(n, o) => self.bit(n, o, mem),
-            
+
             _ => panic!("Instruction {} not implemented.", opcode),
         }
     }
@@ -156,11 +167,36 @@ impl Cpu {
         };
     }
 
-    fn flagCondition(&self, fl: decode::OptFlag) -> bool{
+    fn flagCondition(&self, fl: decode::OptFlag) -> bool {
         match fl {
             decode::OptFlag(None) => true,
             decode::OptFlag(Some((flag, state))) => self.read_flag(flag) == state,
         }
+    }
+
+    fn ret(&mut self, fl: decode::OptFlag, mem: &mut mem::Mem) {
+        if self.flagCondition(fl) {
+            self.pc = self.pop(mem);
+        }
+    }
+
+    fn call(&mut self, fl: decode::OptFlag, reg: WordR, mem: &mut mem::Mem) {
+        if self.flagCondition(fl) {
+            let data = self.pc;
+            self.push(data, mem);
+            self.pc = self.read_16(reg);
+        }
+    }
+
+    fn push(&mut self, reg: u16, mem: &mut mem::Mem) {
+        self.sp -= 2;
+        mem.write_16(self.sp, reg);
+    }
+
+    fn pop(&mut self, mem: &mut mem::Mem) -> u16 {
+        let data = mem.load_16(self.sp);
+        self.sp += 2;
+        data
     }
 
     fn xor(&mut self, reg: ByteR, mem: &mut mem::Mem) {
@@ -172,7 +208,7 @@ impl Cpu {
         self.set_flag(Flag::C, false);
     }
 
-    fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem){
+    fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem) {
         if self.flagCondition(fl) {
             self.pc = self.pc.wrapping_add(o as u16);
         }
@@ -182,9 +218,8 @@ impl Cpu {
         let zero = self.read_8(reg, mem) & (0x1 << n) == 0;
         self.set_flag(Flag::Z, zero);
         self.set_flag(Flag::N, false);
-        self.set_flag(Flag::H, false);
+        self.set_flag(Flag::H, true);
     }
-
 
     fn read_flag(&self, flag: Flag) -> bool {
         let mask = match flag {

@@ -117,7 +117,8 @@ impl MemMapper for GbMapper {
             false=> match addr {
                 // Main table
                 0x0000...0x7FFF => (*self.cartrage).write(addr, data),
-                0x8000...0x9FFF => {self.vram[addr as usize - 0x8000] = data; true},
+                0x8000...0x9FFF => {self.vram[addr as usize - 0x8000] = data; true}
+                0xFF80...0xFFFE => {self.hram[addr as usize - 0xFF80] = data; true}
                 _ => false,
             }
         }
@@ -147,6 +148,12 @@ impl Mem {
             true => {},
             false => println!("Memory write failed for address: {:04X}", addr),
         }
+    }
+
+    pub fn write_16(&mut self, addr: u16, data: u16) {
+        // Look value up in memory map
+        self.write_8(addr, data as u8);
+        self.write_8(addr + 1, (data >> 8) as u8);
     }
 
     pub fn load_16(&self, addr: u16) -> u16 {
