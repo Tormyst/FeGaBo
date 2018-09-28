@@ -30,7 +30,7 @@ impl Window {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
-            .window("myst gameboy",
+            .window("FeGaBo",
                     RESOLUTION_MULTEPLYER * GAMEBOY_WIDTH,
                     RESOLUTION_MULTEPLYER * GAMEBOY_HEIGHT)
             .position_centered()
