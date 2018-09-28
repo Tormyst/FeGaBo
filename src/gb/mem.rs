@@ -108,6 +108,8 @@ impl MemMapper for GbMapper {
         // Main table
         match addr {
             0x0000...0x7FFF => (*self.cartrage).read(addr),
+            0x8000...0x9FFF => Some(self.vram[addr as usize - 0x8000]),
+            0xFF80...0xFFFE => Some(self.hram[addr as usize - 0xFF80]),
             _ => None,
         }
     }

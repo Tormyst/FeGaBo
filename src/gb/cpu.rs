@@ -59,7 +59,40 @@ impl Cpu {
                 self.write_16(o1, data)
             }
 
+            INC8(o) => {
+                // setup
+                let before = self.read_8(o.clone(), mem);
+                // add
+                let data = before.wrapping_add(1);
+                // write
+                self.write_8(o, data, mem);
+                self.set_flag(Flag::Z, data == 0);
+                self.set_flag(Flag::N, false);
+                self.set_flag(Flag::H, (before & 0x10) ^ (data & 0x10) != 0);
+            }
+            INC16(o) => {
+                let data = self.read_16(o.clone()).wrapping_add(1);
+                self.write_16(o, data)
+            }
+
+            DEC8(o) => {
+                // setup
+                let before = self.read_8(o.clone(), mem);
+                // add
+                let data = before.wrapping_sub(1);
+                self.write_8(o, data, mem);
+
+                self.set_flag(Flag::Z, data == 0);
+                self.set_flag(Flag::N, true);
+                self.set_flag(Flag::H, (before & 0x10) ^ (data & 0x10) != 0);
+            }
+            DEC16(o) => {
+                let data = self.read_16(o.clone()).wrapping_sub(1);
+                self.write_16(o, data)
+            }
+
             XOR(o) => self.xor(o, mem),
+            CP(o) => self.cp(o, mem),
 
             JR(fl, o) => self.jr(fl, o, mem),
 
@@ -216,6 +249,17 @@ impl Cpu {
         self.set_flag(Flag::N, false);
         self.set_flag(Flag::H, false);
         self.set_flag(Flag::C, false);
+    }
+
+    fn cp(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let reg = self.read_8(reg, mem);
+        let (data, c) = self.a.overflowing_sub(reg);
+        let h = (self.a & 0x0F) < (reg & 0x0F);
+        let zero = self.a == 0;
+        self.set_flag(Flag::Z, zero);
+        self.set_flag(Flag::N, true);
+        self.set_flag(Flag::H, h);
+        self.set_flag(Flag::C, c);
     }
 
     fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem) {

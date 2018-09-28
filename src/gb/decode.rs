@@ -528,7 +528,7 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
 
         0xE0 => op!(op, op2, LD8(Mem(High(op2)), A), 12),
         0xE1 => op!(op, POP(HL), 12),
-        0xE2 => op!(op, op2, LD8(Mem(HighC), A), 8),
+        0xE2 => op!(op, LD8(Mem(HighC), A), 8),
         // 0xE3 => No instruction,
         // 0xE4 => No instruction,
         0xE5 => op!(op, PUSH(HL), 16),
