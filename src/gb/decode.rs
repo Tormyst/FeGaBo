@@ -1,7 +1,7 @@
 use super::mem::Mem;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ByteR {
     A,
     B,
@@ -33,7 +33,7 @@ impl fmt::Display for ByteR {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WordR {
     AF,
     BC,
@@ -176,9 +176,13 @@ pub enum Op {
 
     RL(ByteR),
     RLC(ByteR),
+    RLA,
+    RLCA,
 
     RR(ByteR),
     RRC(ByteR),
+    RRA,
+    RRCA,
 
     SLA(ByteR),
     SRA(ByteR),
@@ -190,17 +194,8 @@ pub enum Op {
     RES(u8, ByteR),
     SET(u8, ByteR),
 
-    RLA,
-    RLCA,
-    RRA,
-    RRCA,
-
     DI,
     EI,
-}
-
-macro_rules! fz {
-    ($fs:expr) => {match $fs {true => "Z", false => ""}}
 }
 
 impl fmt::Display for Op {
@@ -214,6 +209,13 @@ impl fmt::Display for Op {
             CPL => write!(f, "CPL"),
             SCF => write!(f, "SCF"),
             CCF => write!(f, "CCF"),
+
+            RET(fl) => write!(f, "RET {}", fl),
+            RETI => write!(f, "RETI"),
+            CALL(fl, o) => write!(f, "CALL {}{}", fl, o),
+
+            PUSH(o) => write!(f, "PUSH {}", o),
+            POP(o) => write!(f, "POP {}", o),
 
             LD8(op1, op2) => write!(f, "LD {}, {}", op1, op2),
             LD16(op1, op2) => write!(f, "LD {}, {}", op1, op2),
@@ -234,6 +236,13 @@ impl fmt::Display for Op {
 
             RL(op) => write!(f, "RL {}", op),
             RLC(op) => write!(f, "RLC {}", op),
+            RLA => write!(f, "RLA"),
+            RLCA => write!(f, "RLCA"),
+
+            RR(op) => write!(f, "RR {}", op),
+            RRC(op) => write!(f, "RRC {}", op),
+            RRA => write!(f, "RRA"),
+            RRCA => write!(f, "RRCA"),
 
             BIT(n, o) => write!(f, "BIT {}, {}", n, o),
             RES(n, o) => write!(f, "RES {}, {}", n, o),

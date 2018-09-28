@@ -63,6 +63,16 @@ impl Cpu {
 
             JR(fl, o) => self.jr(fl, o, mem),
 
+            RL(op) => self.rl(op, mem),
+            RLC(op) => self.rlc(op, mem),
+            RLA => self.rl(ByteR::A, mem),
+            RLCA => self.rlc(ByteR::A, mem),
+
+            RR(op) => self.rr(op, mem),
+            RRC(op) => self.rrc(op, mem),
+            RRA => self.rr(ByteR::A, mem),
+            RRCA => self.rrc(ByteR::A, mem),
+
             BIT(n, o) => self.bit(n, o, mem),
 
             _ => panic!("Instruction {} not implemented.", opcode),
@@ -213,6 +223,56 @@ impl Cpu {
             self.pc = self.pc.wrapping_add(o as u16);
         }
     }
+
+    fn rl(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        // setup
+        let regval = self.read_8(reg.clone(), mem);
+        let oldc = self.read_flag(Flag::C) as u8;
+
+        // rotate
+        self.set_flag(Flag::C, regval & 0x80 != 0);
+        let valout = regval << 1 | oldc;
+
+        // output
+        self.set_flag(Flag::Z, valout == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, valout, mem);
+    }
+    fn rlc(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let regval = self.read_8(reg.clone(), mem).rotate_left(1);
+
+        self.set_flag(Flag::C, regval & 0x01 != 0);
+        self.set_flag(Flag::Z, regval == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, regval, mem);
+    }
+    fn rr(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        // setup
+        let regval = self.read_8(reg.clone(), mem);
+        let oldc = self.read_flag(Flag::C) as u8;
+
+        // rotate
+        self.set_flag(Flag::C, regval & 0x01 != 0);
+        let valout = (regval >> 1) | (oldc << 7);
+
+        // output
+        self.set_flag(Flag::Z, valout == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, valout, mem);
+    }
+    fn rrc(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let regval = self.read_8(reg.clone(), mem).rotate_right(1);
+
+        self.set_flag(Flag::C, regval & 0x80 != 0);
+        self.set_flag(Flag::Z, regval == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, regval, mem);
+    }
+
 
     fn bit(&mut self, n: u8, reg: ByteR, mem: &mut mem::Mem) {
         let zero = self.read_8(reg, mem) & (0x1 << n) == 0;
