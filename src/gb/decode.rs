@@ -63,7 +63,7 @@ impl fmt::Display for WordR {
             HLI => write!(f, "HL+"),
             HLD => write!(f, "HL-"),
             IMM(data) => write!(f, "{:04X}", data),
-            HighC => write!(f, "C"),
+            HighC => write!(f, "FF00+C"),
             High(op) => write!(f, "FF00+{}", op),
         }
     }
