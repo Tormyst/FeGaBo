@@ -68,7 +68,7 @@ impl Cpu {
                 self.write_8(o, data, mem);
                 self.set_flag(Flag::Z, data == 0);
                 self.set_flag(Flag::N, false);
-                self.set_flag(Flag::H, (before & 0x10) ^ (data & 0x10) != 0);
+                self.set_flag(Flag::H, (before & 0x10) != (data & 0x10));
             }
             INC16(o) => {
                 let data = self.read_16(o.clone()).wrapping_add(1);
@@ -84,15 +84,24 @@ impl Cpu {
 
                 self.set_flag(Flag::Z, data == 0);
                 self.set_flag(Flag::N, true);
-                self.set_flag(Flag::H, (before & 0x10) ^ (data & 0x10) != 0);
+                self.set_flag(Flag::H, (before & 0x10) != (data & 0x10));
             }
             DEC16(o) => {
                 let data = self.read_16(o.clone()).wrapping_sub(1);
                 self.write_16(o, data)
             }
 
+            ADD8(o1, o2) => self.add(o2, mem, true),
+            // ADD16(o1, o2),
+            ADC(_o1, o2) => self.add(o2, mem, true),
+
+            SUB(o) => self.sub(o, mem, false),
+            SBC(o) => self.sub(o, mem, false),
+
             XOR(o) => self.xor(o, mem),
-            CP(o) => self.cp(o, mem),
+            CP(o) => {
+                self.cp(o, mem, false);
+            }
 
             JR(fl, o) => self.jr(fl, o, mem),
 
@@ -251,15 +260,54 @@ impl Cpu {
         self.set_flag(Flag::C, false);
     }
 
-    fn cp(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+    fn add(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) {
         let reg = self.read_8(reg, mem);
-        let (data, c) = self.a.overflowing_sub(reg);
-        let h = (self.a & 0x0F) < (reg & 0x0F);
-        let zero = self.a == 0;
+
+        let cin = match with_c {
+            false => 0,
+            true => {
+                match self.read_flag(Flag::C) {
+                    true => 1,
+                    false => 0,
+                }
+            }
+        };
+
+        let (data, cout) = self.a.overflowing_add(reg + cin);
+        let h = (data & 0x0F) < ((reg & 0x0F) + cin);
+        let zero = data == 0;
+        self.set_flag(Flag::Z, zero);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, h);
+        self.set_flag(Flag::C, cout);
+        self.a = data;
+    }
+
+    fn sub(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) {
+        self.a = self.cp(reg, mem, with_c);
+    }
+
+    fn cp(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) -> u8 {
+        let reg = self.read_8(reg, mem);
+
+        let cin = match with_c {
+            false => 0,
+            true => {
+                match self.read_flag(Flag::C) {
+                    true => 1,
+                    false => 0,
+                }
+            }
+        };
+
+        let (data, cout) = self.a.overflowing_sub(reg + cin);
+        let h = (data & 0x0F) < ((reg & 0x0F) + cin);
+        let zero = data == 0;
         self.set_flag(Flag::Z, zero);
         self.set_flag(Flag::N, true);
         self.set_flag(Flag::H, h);
-        self.set_flag(Flag::C, c);
+        self.set_flag(Flag::C, cout);
+        data
     }
 
     fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem) {

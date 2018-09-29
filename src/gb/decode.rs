@@ -159,12 +159,10 @@ pub enum Op {
     ADD8(ByteR, ByteR),
     ADD16(WordR, WordR),
 
-    ADC8(ByteR, ByteR),
-    ADC16(WordR, WordR),
+    ADC(ByteR, ByteR),
 
     SUB(ByteR),
-
-    SBC(ByteR, ByteR),
+    SBC(ByteR),
 
     AND(ByteR),
     OR(ByteR),
@@ -248,7 +246,7 @@ impl fmt::Display for Op {
             RES(n, o) => write!(f, "RES {}, {}", n, o),
             SET(n, o) => write!(f, "SET {}, {}", n, o),
 
-            _ => write!(f, "{:?}", self),
+            _ => panic!("{:?} has no good display", self),
         }
     }
 }
@@ -432,14 +430,14 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
         0x85 => op!(op, ADD8(A, L), 4),
         0x86 => op!(op, ADD8(A, Mem(HL)), 4),
         0x87 => op!(op, ADD8(A, A), 4),
-        0x88 => op!(op, ADC8(A, B), 4),
-        0x89 => op!(op, ADC8(A, C), 4),
-        0x8A => op!(op, ADC8(A, D), 4),
-        0x8B => op!(op, ADC8(A, E), 4),
-        0x8C => op!(op, ADC8(A, H), 4),
-        0x8D => op!(op, ADC8(A, L), 4),
-        0x8E => op!(op, ADC8(A, Mem(HL)), 8),
-        0x8F => op!(op, ADC8(A, A), 4),
+        0x88 => op!(op, ADC(A, B), 4),
+        0x89 => op!(op, ADC(A, C), 4),
+        0x8A => op!(op, ADC(A, D), 4),
+        0x8B => op!(op, ADC(A, E), 4),
+        0x8C => op!(op, ADC(A, H), 4),
+        0x8D => op!(op, ADC(A, L), 4),
+        0x8E => op!(op, ADC(A, Mem(HL)), 8),
+        0x8F => op!(op, ADC(A, A), 4),
 
         0x90 => op!(op, SUB(B), 4),
         0x91 => op!(op, SUB(C), 4),
@@ -449,14 +447,14 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
         0x95 => op!(op, SUB(L), 4),
         0x96 => op!(op, SUB(Mem(HL)), 4),
         0x97 => op!(op, SUB(A), 4),
-        0x98 => op!(op, SBC(A, B), 4),
-        0x99 => op!(op, SBC(A, C), 4),
-        0x9A => op!(op, SBC(A, D), 4),
-        0x9B => op!(op, SBC(A, E), 4),
-        0x9C => op!(op, SBC(A, H), 4),
-        0x9D => op!(op, SBC(A, L), 4),
-        0x9E => op!(op, SBC(A, Mem(HL)), 8),
-        0x9F => op!(op, SBC(A, A), 4),
+        0x98 => op!(op, SBC(B), 4),
+        0x99 => op!(op, SBC(C), 4),
+        0x9A => op!(op, SBC(D), 4),
+        0x9B => op!(op, SBC(E), 4),
+        0x9C => op!(op, SBC(H), 4),
+        0x9D => op!(op, SBC(L), 4),
+        0x9E => op!(op, SBC(Mem(HL)), 8),
+        0x9F => op!(op, SBC(A), 4),
 
         0xA0 => op!(op, AND(B), 4),
         0xA1 => op!(op, AND(C), 4),
@@ -506,7 +504,7 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
         0xCB => cbTable(op2),
         0xCC => op!(op, op2, op3, CALL(ofZ, imm16!(op2, op3)), 12),
         0xCD => op!(op, op2, op3, CALL(ofNone, imm16!(op2, op3)), 12),
-        0xCE => op!(op, op2, ADC8(A, imm8!(op2)), 8),
+        0xCE => op!(op, op2, ADC(A, imm8!(op2)), 8),
         0xCF => op!(op, RST(0x8), 16),
 
         0xD0 => op!(op, RET(ofNC), 8),
@@ -523,7 +521,7 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
         // 0xDB => No instruction,
         0xDC => op!(op, op2, op3, CALL(ofC, imm16!(op2, op3)), 12),
         // 0xDD => No instruction,
-        0xDE => op!(op, op2, SBC(A, imm8!(op2)), 8),
+        0xDE => op!(op, op2, SBC(imm8!(op2)), 8),
         0xDF => op!(op, RST(0x18), 16),
 
         0xE0 => op!(op, op2, LD8(Mem(High(op2)), A), 12),
