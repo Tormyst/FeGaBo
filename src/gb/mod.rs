@@ -27,8 +27,9 @@ struct Gb {
 pub fn connect() -> GbConnect {
     let (to_gb, from_main) = mpsc::channel();
     let (to_main, from_gb) = mpsc::channel();
-
-    thread::spawn(move || { Gb::new(GB_KIND::GB, to_main, from_main).unwrap().cycle(); });
+    thread::Builder::new().name("GB".to_string()).spawn(move || { 
+        Gb::new(GB_KIND::GB, to_main, from_main).unwrap().cycle(); 
+    });
 
     GbConnect { to_gb, from_gb }
 }
