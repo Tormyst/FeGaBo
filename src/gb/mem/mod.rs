@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
-mod video;
+mod ppu;
 mod cm;
 
 const kb_8: usize = 0x2000;
@@ -83,16 +83,19 @@ impl Oam {
 }
 
 struct Io {
-    
+    ppu: ppu::PPU,
 }
 
 impl Io {
+    fn new() -> Self {
+        Io {ppu: ppu::PPU::new()}
+    }
 
     fn read(&self, addr: u16) -> Option<u8> {
         match addr {
             0xFF00 => {None} // Joypad
             0xFF10...0xFF3F => {Some(0x00)} // Audio device not implemented.
-            0xFF40...0xFF55 => {None} // Video device
+            0xFF40...0xFF45 => {self.ppu.read(addr)} // PPU state 
             _ => panic!("Unknown IO port read at {:X}", addr)
         }
     }
@@ -101,7 +104,7 @@ impl Io {
         match addr {
             0xFF00 => {false} // Joypad
             0xFF10...0xFF3F => {true} // Audio device not implemented.
-            0xFF40...0xFF55 => {false} // Video device
+            0xFF40...0xFF45 => {self.ppu.write(addr, data)} // PPU state
             _ => panic!("Unknown IO port write at {:X}", addr)
         }
     }
@@ -116,6 +119,7 @@ pub struct GbMapper {
     boot_rom: BootRom,
     vram: [u8; kb_8],
     wram: [u8; kb_8],
+    boot: bool,
     oam: Oam,
     io: Io,
     hram: [u8; 126],
@@ -129,8 +133,9 @@ impl GbMapper {
             boot_rom: BootRom::new(vec![]),
             vram: [0; kb_8],
             wram: [0; kb_8],
+            boot: false,
             oam: Oam::new(),
-            io: Io {},
+            io: Io::new(),
             hram: [0; 126],
             ie: 0,
         }
@@ -149,8 +154,9 @@ impl GbMapper {
             boot_rom: BootRom::new(buffer),
             vram: [0; kb_8],
             wram: [0; kb_8],
+            boot: false,
             oam: Oam::new(),
-            io: Io {},
+            io: Io::new(),
             hram: [0; 126],
             ie: 0,
         }
@@ -159,12 +165,9 @@ impl GbMapper {
 
 impl MemMapper for GbMapper {
     fn read(&self, addr: u16) -> Option<u8> {
-        // Boot rom overlay
-        if let Some(data) = self.boot_rom.read(addr) {
-            return Some(data);
-        }
         // Main table
         match addr {
+            0x0000...0x00FF => if !self.boot { self.boot_rom.read(addr) } else { (*self.cartrage).read(addr) }
             0x0000...0x7FFF => (*self.cartrage).read(addr),
             0x8000...0x9FFF => Some(self.vram[addr as usize & 0x0FFF]),
             0xA000...0xBFFF => (*self.cartrage).read_ram(addr),
@@ -172,27 +175,30 @@ impl MemMapper for GbMapper {
             0xE000...0xFDFF => Some(self.wram[addr as usize & 0x0FFF]),
             0xFE00...0xFE9F => self.oam.read(addr),
             0xFEA0...0xFEFF	=> None, // Not Usable
-            0xFF00...0xFF7F	=> self.io.read(addr), //I/O Registers
+            0xFF00...0xFF4F => self.io.read(addr), // I/O Registers
+            0xFF50 => Some(match self.boot{true => 0xFE, false => 0xFF}),
+            0xFF51...0xFF7F	=> self.io.read(addr), //more I/O Registers
             0xFF80...0xFFFE => Some(self.hram[addr as usize & 0x007F]),
+            0xFFFF => Some(self.ie),
             _ => None,
         }
     }
     fn write(&mut self, addr: u16, data: u8) -> bool {
-        match self.boot_rom.write(addr, data) {
-            true => true,
-            false=> match addr {
-                // Main table
-                0x0000...0x7FFF => (*self.cartrage).write(addr, data),
-                0x8000...0x9FFF => {self.vram[addr as usize & 0x0FFF] = data; true}
-                0xA000...0xBFFF => (*self.cartrage).write_ram(addr, data),
-                0xC000...0xDFFF => {self.wram[addr as usize & 0x0FFF] = data; true}
-                0xE000...0xFDFF => {self.wram[addr as usize & 0x0FFF] = data; true}
-                0xFE00...0xFE9F => self.oam.write(addr, data),
-                0xFEA0...0xFEFF	=> false, // Not Usable
-                0xFF00...0xFF7F	=> self.io.write(addr, data), //I/O Registers
-                0xFF80...0xFFFE => {self.hram[addr as usize & 0x007F] = data; true}
-                _ => false,
-            }
+        match addr {
+            // Main table
+            0x0000...0x7FFF => (*self.cartrage).write(addr, data),
+            0x8000...0x9FFF => {self.vram[addr as usize & 0x0FFF] = data; true}
+            0xA000...0xBFFF => (*self.cartrage).write_ram(addr, data),
+            0xC000...0xDFFF => {self.wram[addr as usize & 0x0FFF] = data; true}
+            0xE000...0xFDFF => {self.wram[addr as usize & 0x0FFF] = data; true}
+            0xFE00...0xFE9F => self.oam.write(addr, data),
+            0xFEA0...0xFEFF	=> false, // Not Usable
+            0xFF00...0xFF4F	=> self.io.write(addr, data), //I/O Registers
+            0xFF50 => {self.boot = (0x01 & data) > 0; true},
+            0xFF51...0xFF7F	=> self.io.write(addr, data), //I/O Registers
+            0xFF80...0xFFFE => {self.hram[addr as usize & 0x007F] = data; true}
+            0xFFFF => {self.ie = data; true},
+            _ => false,
         }
     }
 }
