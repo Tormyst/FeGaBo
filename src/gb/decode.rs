@@ -232,6 +232,14 @@ impl fmt::Display for Op {
             DEC8(op) => write!(f, "DEC {}", op),
             DEC16(op) => write!(f, "DEC {}", op),
 
+            ADD8(o1, o2) => write!(f, "ADD {}, {}", o1, o2),
+            ADD16(o1, o2) => write!(f, "ADD {}, {}", o1, o2),
+
+            ADC(o1, o2) => write!(f, "ADC {}, {}", o1, o2),
+
+            SUB(o) => write!(f, "SUB {}", o),
+            SBC(o) => write!(f, "SBC {}", o),
+
             RL(op) => write!(f, "RL {}", op),
             RLC(op) => write!(f, "RLC {}", op),
             RLA => write!(f, "RLA"),
