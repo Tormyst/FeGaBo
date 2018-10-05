@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 
 mod ppu;
+mod gbp;
 mod cm;
 
 const kb_8: usize = 0x2000;
@@ -84,28 +85,35 @@ impl Oam {
 
 struct Io {
     ppu: ppu::PPU,
+    gbp: gbp::GBP,
 }
+
 
 impl Io {
     fn new() -> Self {
-        Io {ppu: ppu::PPU::new()}
+        Io {
+            ppu: ppu::PPU::new(),
+            gbp: gbp::GBP::new(),
+        }
     }
 
     fn read(&self, addr: u16) -> Option<u8> {
         match addr {
-            0xFF00 => {None} // Joypad
-            0xFF10...0xFF3F => {Some(0x00)} // Audio device not implemented.
-            0xFF40...0xFF45 => {self.ppu.read(addr)} // PPU state 
-            _ => panic!("Unknown IO port read at {:X}", addr)
+            0xFF00 => None, // Joypad
+            0xFF10...0xFF3F => Some(0x00), // Audio device not implemented.
+            0xFF40...0xFF45 => self.ppu.read(addr), // PPU state
+            0xFF47...0xFF49 => self.gbp.read(addr), // Pallet for GB
+            _ => panic!("Unknown IO port read at {:X}", addr),
         }
     }
 
     fn write(&mut self, addr: u16, data: u8) -> bool {
         match addr {
-            0xFF00 => {false} // Joypad
-            0xFF10...0xFF3F => {true} // Audio device not implemented.
-            0xFF40...0xFF45 => {self.ppu.write(addr, data)} // PPU state
-            _ => panic!("Unknown IO port write at {:X}", addr)
+            0xFF00 => false, // Joypad
+            0xFF10...0xFF3F => true, // Audio device not implemented.
+            0xFF40...0xFF45 => self.ppu.write(addr, data), // PPU state
+            0xFF47...0xFF49 => self.gbp.write(addr, data), // Pallet for GB
+            _ => panic!("Unknown IO port write at {:X}", addr),
         }
     }
 }

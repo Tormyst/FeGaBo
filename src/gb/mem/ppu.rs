@@ -33,7 +33,7 @@ impl PPU {
         }
     }
     pub fn read(&self, addr: u16) -> Option<u8> {
-        println!("Reading from PPU at {}", addr);
+        println!("Reading from PPU at {:04X}", addr);
         match addr {
             0xFF40 => Some(self.lcdc),
             0xFF41 => Some(self.stat),
@@ -47,7 +47,7 @@ impl PPU {
         }
     }
     pub fn write(&mut self, addr: u16, data: u8) -> bool {
-        println!("Writing to PPU at {} the value {}", addr, data);
+        println!("Writing to PPU at {:4X} the value {:2X}", addr, data);
         match addr {
             0xFF40 => {self.lcdc; true},
             0xFF41 => {self.stat = data & 0xF8 | self.stat & 0x7; true},
