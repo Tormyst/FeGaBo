@@ -10,6 +10,7 @@ const kb_8: usize = 0x2000;
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
     fn write(&mut self, addr: u16, data: u8) -> bool;
+    fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
 }
 
 
@@ -116,6 +117,9 @@ impl Io {
             _ => panic!("Unknown IO port write at {:X}", addr),
         }
     }
+    fn time_passes(&mut self, time: usize) -> Option<Vec<u8>> {
+        self.ppu.time_passes(time)
+    }
 }
 
 pub struct Mem {
@@ -209,6 +213,9 @@ impl MemMapper for GbMapper {
             _ => false,
         }
     }
+    fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
+        self.io.time_passes(time)
+    }
 }
 
 impl Mem {
@@ -225,6 +232,10 @@ impl Mem {
                          addr);
             }
         }
+    }
+
+    pub fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
+        self.map_holder.time_passes(time)
     }
 
     pub fn write_8(&mut self, addr: u16, data: u8) {

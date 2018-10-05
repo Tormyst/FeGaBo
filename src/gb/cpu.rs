@@ -121,7 +121,7 @@ impl Cpu {
         }
     }
 
-    pub fn cycle(&mut self, mem: &mut mem::Mem) {
+    pub fn cycle(&mut self, mem: &mut mem::Mem) -> usize{
         // Load opcode
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
 
@@ -133,6 +133,8 @@ impl Cpu {
 
         // Execute
         self.execute_op(opcode, mem);
+
+        op_time
     }
 
     fn read_8(&mut self, reg: ByteR, mem: &mem::Mem) -> u8 {

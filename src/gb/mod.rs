@@ -56,7 +56,12 @@ impl Gb {
     fn cycle(mut self) {
         println!("Everything is set up!!!!");
         loop {
-            self.cpu.cycle(&mut self.mem);
+            let time = self.cpu.cycle(&mut self.mem);
+            if let Some(rows) = self.mem.time_passes(time) {
+                for r in rows {
+                    println!("ROW {} should be rendered", r);
+                }
+            }
         }
     }
 }
