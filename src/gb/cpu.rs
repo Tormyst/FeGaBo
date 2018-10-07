@@ -3,6 +3,7 @@ use super::decode::{ByteR, Flag, Op, WordR};
 use super::disassemble;
 use super::mem;
 use std::fmt::Debug;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -16,6 +17,7 @@ pub struct Cpu {
     f: u8,
     sp: u16,
     pc: u16,
+    printed: HashSet<u16>,
 }
 
 impl Cpu {
@@ -31,6 +33,7 @@ impl Cpu {
             f: 0,
             sp: 0,
             pc: 0,
+            printed: HashSet::new(),
         }
     }
 
@@ -125,8 +128,11 @@ impl Cpu {
         // Load opcode
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
 
-        // Print disassemble
-        println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
+        // Print disassemble if it has never been printed before
+        if !self.printed.contains(&self.pc) {
+            self.printed.insert(self.pc);
+            println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
+        }
 
         //Increment PC
         self.pc += op_size;
