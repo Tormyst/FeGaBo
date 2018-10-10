@@ -13,8 +13,8 @@ pub struct PPU {
     lcdc: u8, // 40
     stat: u8, // 41
 
-    scy: u8, // 42
-    scx: u8, // 43
+    pub scy: u8, // 42
+    pub scx: u8, // 43
 
     ly: u8, // 44
     lx: usize, // Hidden value used to tell where we are in the write cycle
@@ -90,6 +90,10 @@ impl PPU {
         }
         self.lcdc = data;
         true
+    }
+
+    pub fn lcdc_get(&self, offset: u8) -> bool {
+        self.lcdc & (0x01 << offset) != 0
     }
 
     pub fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{

@@ -8,7 +8,23 @@
 ///
 /// Bits representation: 33221100
 /// Object pallets always contain transparent for colour 0.
-///
+
+macro_rules! copy3 {
+    ($b:expr, $c:expr) => {
+        {
+            $b[0] = $c;
+            $b[1] = $c;
+            $b[2] = $c;
+        }
+    }
+}
+
+pub enum Pallet {
+    BGP,
+    OBP0,
+    OBP1,
+}
+
 pub struct GBP {
     /// GB background pallet
     bgp: u8,
@@ -37,5 +53,22 @@ impl GBP {
             0xFF49 => {self.obp1 = data; true},
             _ => false,
         }
+    }
+
+    pub fn apply(&self, p: Pallet, color: u8, buffer: &mut [u8]){
+        use std::io::Write;
+        let p = match p { 
+            BGP => self.bgp,
+            OBP0 => self.obp0,
+            OBP1 => self.obp1,
+        };
+        let c = (p >> (color * 2)) & 0x03;
+        match c {
+            0 => copy3!(buffer, 255),
+            1 => copy3!(buffer, 170),
+            2 => copy3!(buffer, 85),
+            3 => copy3!(buffer, 0),
+            _ => unreachable!("There are only 4 colours"),
+        };
     }
 }

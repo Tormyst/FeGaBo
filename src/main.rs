@@ -84,7 +84,24 @@ impl Window {
             use std::sync::mpsc::TryRecvError;
 
             match gbconnect.from_gb.try_recv() {
-                Ok(event) => {}
+                Ok(event) => {
+                    for texture in &mut live_textures {
+                        match texture.0 {
+                            TextureType::Screen => {
+                                texture
+                                    .1
+                                    .with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                                        let frame = gbconnect.canvas.lock().unwrap();
+                                        buffer.copy_from_slice(&**frame);
+                                    })
+                                    .unwrap();
+                            }
+                        }
+                        self.canvas.copy(&texture.1, None, None).unwrap();
+                    }
+                    self.canvas.present();
+                    
+                    gbconnect.to_gb.send(frame as usize).unwrap();}
                 Err(err) => {
                     match err {
                         TryRecvError::Disconnected => {
@@ -95,36 +112,6 @@ impl Window {
                 }
             }
 
-            // Sample update tester
-            if frame >= 255 {
-                frame = 0;
-            }
-
-            for texture in &mut live_textures {
-                match texture.0 {
-                    TextureType::Screen => {
-                        texture
-                            .1
-                            .with_lock(None, |buffer: &mut [u8], pitch: usize| {
-                                let mut frame = frame as u8;
-                                for y in 0..GAMEBOY_HEIGHT as usize {
-                                    for x in 0..GAMEBOY_WIDTH as usize {
-                                        let offset = y * pitch + x * 3;
-                                        buffer[offset] = frame;
-                                        buffer[offset + 1] = frame;
-                                        buffer[offset + 2] = frame;
-                                        frame = frame.wrapping_add(1);
-                                    }
-                                }
-                            })
-                            .unwrap();
-                    }
-                }
-                self.canvas.copy(&texture.1, None, None).unwrap();
-            }
-            // canvas.set_draw_color(Color::RGB(0, 0, 0));
-            // canvas.clear();
-            self.canvas.present();
             frame += 1;
             fps += 1;
             if SystemTime::now().duration_since(start_time).unwrap() > Duration::from_secs(1) {

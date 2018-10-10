@@ -1,16 +1,20 @@
 use std::fs::File;
 use std::io::Read;
 
+use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
+
 mod ppu;
 mod gbp;
 mod cm;
 
 const kb_8: usize = 0x2000;
+const gameboy_screen_buffer_size: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
 
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
     fn write(&mut self, addr: u16, data: u8) -> bool;
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
+    fn render(&self, row: u8, buffer: &mut [u8]);
 }
 
 
@@ -124,6 +128,7 @@ impl Io {
 
 pub struct Mem {
     map_holder: Box<MemMapper>,
+    screen: Box<[u8; gameboy_screen_buffer_size as usize]>,
 }
 
 pub struct GbMapper {
@@ -216,11 +221,57 @@ impl MemMapper for GbMapper {
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
         self.io.time_passes(time)
     }
+    fn render(&self, row: u8, buffer: &mut [u8]) {
+        let x_offset = self.io.ppu.scx;
+        let y_offset = self.io.ppu.scy + row;
+        for i in 0..GAMEBOY_WIDTH as u8 {
+            let buff_offset = i as usize * 3;
+            self.renderBackground(x_offset.wrapping_add(i), 
+                                  y_offset, 
+                                  &mut buffer[buff_offset..buff_offset + 3]);
+        }
+    }
+}
+
+impl GbMapper {
+    fn renderBackground(&self, x:u8,y:u8, buffer: &mut [u8]){
+        // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
+        let map_offset = match self.io.ppu.lcdc_get(3) {
+            true => 0x9C00,
+            false => 0x9800, 
+        };
+
+        let x:u16 = x as u16;
+        let y:u16 = y as u16;
+
+        let map_location = map_offset + ((y / 8) * 32) + (x / 8);
+        let map_data = self.read(map_location).unwrap();
+
+        // This + the next 15 are the sprite
+        let sprite_base = match self.io.ppu.lcdc_get(4) {
+            true => (map_data as u16 * 16) + 0x8000,
+            // This needs to be a signed offset
+            false => ((map_data as i16 * 16) + 0x8800) as u16,
+        };
+        
+        // Move to the correct row
+        let sprite_location = sprite_base + (y % 8) * 2;
+        let x_offset = x % 8;
+        let byte_offset = x_offset / 4;
+        let bit_offset = x_offset % 4;
+
+        let pixel_color = self.read(sprite_location + byte_offset).unwrap() >> (bit_offset * 2);
+
+        self.io.gbp.apply(gbp::Pallet::BGP, pixel_color & 0x03, buffer);
+    }
 }
 
 impl Mem {
     pub fn new_gb(mapper: GbMapper) -> Self {
-        Mem { map_holder: Box::new(mapper) }
+        Mem { 
+            map_holder: Box::new(mapper), 
+            screen: Box::new([0; gameboy_screen_buffer_size as usize]),
+        }
     }
 
     pub fn load_8(&self, addr: u16) -> u8 {
@@ -236,6 +287,26 @@ impl Mem {
 
     pub fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
         self.map_holder.time_passes(time)
+    }
+    
+    pub fn render(&mut self, row: usize) -> bool{
+        if row < 144 {
+            // Actually render
+            let start_row = GAMEBOY_WIDTH as usize * 3 * row;
+            let end_row = start_row + GAMEBOY_WIDTH as usize * 3;
+            self.map_holder.render(row as u8, &mut self.screen[start_row..end_row]);
+            false
+        }
+        else {
+            // Vblank, and send frame at 145
+            row == 145
+        }
+    }
+
+    pub fn screen_swap(&mut self, other: &mut Box<[u8; gameboy_screen_buffer_size as usize]>) {
+        use std::mem::swap;
+
+        swap(&mut self.screen, other);
     }
 
     pub fn write_8(&mut self, addr: u16, data: u8) {
