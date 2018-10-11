@@ -15,6 +15,8 @@ pub trait MemMapper {
     fn write(&mut self, addr: u16, data: u8) -> bool;
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
     fn render(&self, row: u8, buffer: &mut [u8]);
+    fn print_background_map(&self);
+    fn print_sprite_table(&self);
 }
 
 
@@ -144,9 +146,9 @@ pub struct GbMapper {
 }
 
 impl GbMapper {
-    pub fn new() -> Self {
+    pub fn new(cartrage: String) -> Self {
         GbMapper {
-            cartrage: Box::new(cm::NoneCartrageMapper {}),
+            cartrage: cm::new(cartrage),
             boot_rom: BootRom::new(vec![]),
             vram: [0; kb_8],
             wram: [0; kb_8],
@@ -158,7 +160,7 @@ impl GbMapper {
         }
     }
 
-    pub fn new_with_boot_rom(boot_rom: String) -> Self {
+    pub fn new_with_boot_rom(boot_rom: String, cartrage: String) -> Self {
         let mut buffer = Vec::new();
         let boot_size = File::open(boot_rom)
             .unwrap()
@@ -167,7 +169,7 @@ impl GbMapper {
         println!("Boot rom loaded: {:X} bytes long", boot_size);
 
         GbMapper {
-            cartrage: Box::new(cm::NoneCartrageMapper {}),
+            cartrage: cm::new(cartrage),
             boot_rom: BootRom::new(buffer),
             vram: [0; kb_8],
             wram: [0; kb_8],
@@ -231,10 +233,45 @@ impl MemMapper for GbMapper {
                                   &mut buffer[buff_offset..buff_offset + 3]);
         }
     }
+
+    fn print_background_map(&self) {
+        let map_offset = match self.io.ppu.lcdc_get(3) {
+            true => 0x9C00,
+            false => 0x9800, 
+        };
+        println!("Using Map: {:0X}", map_offset);
+        print!("   ");
+        (0..32).for_each(move |x| print!(" {:2X}", x));
+        println!();
+        for i in 0..32 {
+            print!("{:2X}:",i);
+            (0..32).for_each(move |x| 
+                             print!(" {:2X}", self.read(map_offset 
+                                                       + (i as u16 * 32) 
+                                                       + x
+                                                       ).unwrap()
+                                    ));
+            println!();
+        }
+    }
+    fn print_sprite_table(&self) {
+        println!("Character Ram");
+        for i in 0..384 {
+            let addr = (i*16) + 0x8000;
+            print!("Tile {:3X} 0x{:04X}:",i, addr);
+            (0..16).for_each(move |x| 
+                             print!(" {:2X}", self.read(addr
+                                                       + x
+                                                       ).unwrap()
+                                    ));
+            println!();
+        }
+    }
 }
 
 impl GbMapper {
     fn renderBackground(&self, x:u8,y:u8, buffer: &mut [u8]){
+        //println!("Background x: {}, y: {}", x, y);
         // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
         let map_offset = match self.io.ppu.lcdc_get(3) {
             true => 0x9C00,
@@ -251,18 +288,24 @@ impl GbMapper {
         let sprite_base = match self.io.ppu.lcdc_get(4) {
             true => (map_data as u16 * 16) + 0x8000,
             // This needs to be a signed offset
-            false => ((map_data as i16 * 16) + 0x8800) as u16,
+            false => ((map_data as i16 * 16) + 0x9000) as u16,
         };
         
         // Move to the correct row
-        let sprite_location = sprite_base + (y % 8) * 2;
         let x_offset = x % 8;
-        let byte_offset = x_offset / 4;
+        let x_byte_offset = x_offset / 4;
+        let sprite_location = sprite_base + ((y % 8) * 2) + x_byte_offset;
         let bit_offset = x_offset % 4;
 
-        let pixel_color = self.read(sprite_location + byte_offset).unwrap() >> (bit_offset * 2);
+        // print!("Sprite {:3X} at {:4X} offset {:X}", map_data, sprite_base, sprite_location);
 
-        self.io.gbp.apply(gbp::Pallet::BGP, pixel_color & 0x03, buffer);
+        let pixel_byte = self.read(sprite_location).unwrap();
+        // let pixel_color = ( pixel_byte >> (bit_offset * 2)) & 0x03;
+        let pixel_color = ( pixel_byte >> ((3 - bit_offset) * 2)) & 0x03;
+
+        // println!(" color {:1X} from {:2X}", pixel_color, pixel_byte);
+
+        self.io.gbp.apply(gbp::Pallet::BGP, pixel_color, buffer);
     }
 }
 
@@ -293,7 +336,7 @@ impl Mem {
         if row < 144 {
             // Actually render
             let start_row = GAMEBOY_WIDTH as usize * 3 * row;
-            let end_row = start_row + GAMEBOY_WIDTH as usize * 3;
+            let end_row = start_row + (GAMEBOY_WIDTH as usize * 3);
             self.map_holder.render(row as u8, &mut self.screen[start_row..end_row]);
             false
         }
@@ -307,6 +350,9 @@ impl Mem {
         use std::mem::swap;
 
         swap(&mut self.screen, other);
+        // Prints that should be done once a frame:
+        // self.map_holder.print_background_map();
+        // self.map_holder.print_sprite_table();
     }
 
     pub fn write_8(&mut self, addr: u16, data: u8) {

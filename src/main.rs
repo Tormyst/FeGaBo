@@ -100,6 +100,7 @@ impl Window {
                         self.canvas.copy(&texture.1, None, None).unwrap();
                     }
                     self.canvas.present();
+                    fps += 1;
                     
                     gbconnect.to_gb.send(frame as usize).unwrap();}
                 Err(err) => {
@@ -112,8 +113,6 @@ impl Window {
                 }
             }
 
-            frame += 1;
-            fps += 1;
             if SystemTime::now().duration_since(start_time).unwrap() > Duration::from_secs(1) {
                 println!("FPS: {}", fps);
                 fps = 0;

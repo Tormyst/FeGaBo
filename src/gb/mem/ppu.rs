@@ -46,7 +46,7 @@ impl PPU {
         }
     }
     pub fn read(&self, addr: u16) -> Option<u8> {
-        println!("Reading from PPU at {:04X}", addr);
+        //println!("Reading from PPU at {:04X}", addr);
         match addr {
             0xFF40 => Some(self.lcdc),
             0xFF41 => Some(self.stat),
@@ -60,12 +60,12 @@ impl PPU {
         }
     }
     pub fn write(&mut self, addr: u16, data: u8) -> bool {
-        println!("Writing to PPU at {:4X} the value {:2X}", addr, data);
+        //println!("Writing to PPU at {:4X} the value {:2X}", addr, data);
         match addr {
-            0xFF40 => {self.lcdc; true},
+            0xFF40 => {self.lcdc_set(data)},
             0xFF41 => {self.stat = data & 0xF8 | self.stat & 0x7; true},
-            0xFF42 => {self.scy; true},
-            0xFF43 => {self.scx; true},
+            0xFF42 => {self.scy = data; true},
+            0xFF43 => {self.scx = data; true},
             0xFF44 => {self.ly = 0; true}, // LY is read only.  Writing resets the value
             0xFF45 => {self.lyc; true},
             0xFF4A => {self.wy; true},
@@ -89,6 +89,7 @@ impl PPU {
             }
         }
         self.lcdc = data;
+        println!("Setting LCDC: {:08b}", self.lcdc);
         true
     }
 
@@ -107,6 +108,7 @@ impl PPU {
 
                 if self.ly > LYMAX {
                     self.ly -= LYMAX;
+                    ret.push(0);
                 }
             }
             self.set_state();

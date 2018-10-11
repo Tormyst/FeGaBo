@@ -127,11 +127,14 @@ impl Cpu {
     pub fn cycle(&mut self, mem: &mut mem::Mem) -> usize{
         // Load opcode
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
+        // let mut flag = false;
 
         // Print disassemble if it has never been printed before
         if !self.printed.contains(&self.pc) {
             self.printed.insert(self.pc);
+            // println!("Before: {:X?}", self);
             println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
+            // flag = true;
         }
 
         //Increment PC
@@ -139,6 +142,8 @@ impl Cpu {
 
         // Execute
         self.execute_op(opcode, mem);
+
+        // if flag { println!("After: {:X?}", self); }
 
         op_time
     }
@@ -327,11 +332,14 @@ impl Cpu {
     fn rl(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         // setup
         let regval = self.read_8(reg.clone(), mem);
-        let oldc = self.read_flag(Flag::C) as u8;
+        let oldC = self.read_flag(Flag::C);
 
         // rotate
         self.set_flag(Flag::C, regval & 0x80 != 0);
-        let valout = regval << 1 | oldc;
+        let valout = (regval << 1) | match oldC {
+            true => 1,
+            false => 0,        
+        };
 
         // output
         self.set_flag(Flag::Z, valout == 0);

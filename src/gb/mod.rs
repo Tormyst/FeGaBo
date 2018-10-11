@@ -54,8 +54,10 @@ impl Gb {
             GB_KIND::GB => {
                 Some(Gb {
                          cpu: cpu::Cpu::new(),
-                         mem: mem::Mem::new_gb(mem::GbMapper::new_with_boot_rom("assets/rom/dmg_rom.gb"
-                                                                                 .to_string())),
+                         mem: mem::Mem::new_gb(
+                             mem::GbMapper::new_with_boot_rom(
+                                 "assets/rom/dmg_rom.gb".to_string(),
+                                 "assets/tetris.gb".to_string())),
                          to_main,
                          from_main,
                          front_buffer,
@@ -77,7 +79,6 @@ impl Gb {
                         self.to_main.send(0);
                         // This should be updated button info.
                         let val = self.from_main.recv().unwrap(); 
-                        println!("Message from main: {}", val);
                     }
                 }
             }
