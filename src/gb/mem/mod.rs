@@ -292,16 +292,17 @@ impl GbMapper {
         };
         
         // Move to the correct row
-        let x_offset = x % 8;
-        let x_byte_offset = x_offset / 4;
-        let sprite_location = sprite_base + ((y % 8) * 2) + x_byte_offset;
-        let bit_offset = x_offset % 4;
+        let x_offset = 7 - (x % 8);
+        let sprite_location = sprite_base + ((y % 8) * 2);
 
         // print!("Sprite {:3X} at {:4X} offset {:X}", map_data, sprite_base, sprite_location);
 
-        let pixel_byte = self.read(sprite_location).unwrap();
+        let pixel_byte_low = self.read(sprite_location).unwrap();
+        let pixel_byte_high = self.read(sprite_location + 1).unwrap();
         // let pixel_color = ( pixel_byte >> (bit_offset * 2)) & 0x03;
-        let pixel_color = ( pixel_byte >> ((3 - bit_offset) * 2)) & 0x03;
+        let pixel_color_low = (pixel_byte_low >> x_offset) & 0x01;
+        let pixel_color_high = (pixel_byte_high >> x_offset) & 0x01;
+        let pixel_color = pixel_color_low + (2 * pixel_color_high);
 
         // println!(" color {:1X} from {:2X}", pixel_color, pixel_byte);
 
