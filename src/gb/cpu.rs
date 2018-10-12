@@ -3,7 +3,6 @@ use super::decode::{ByteR, Flag, Op, WordR};
 use super::disassemble;
 use super::mem;
 use std::fmt::Debug;
-use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -17,7 +16,7 @@ pub struct Cpu {
     f: u8,
     sp: u16,
     pc: u16,
-    printed: HashSet<u16>,
+    print: bool,
 }
 
 impl Cpu {
@@ -33,7 +32,7 @@ impl Cpu {
             f: 0,
             sp: 0,
             pc: 0,
-            printed: HashSet::new(),
+            print: false,
         }
     }
 
@@ -94,7 +93,7 @@ impl Cpu {
                 self.write_16(o, data)
             }
 
-            ADD8(o1, o2) => self.add(o2, mem, true),
+            ADD8(o1, o2) => self.add(o2, mem, false),
             // ADD16(o1, o2),
             ADC(_o1, o2) => self.add(o2, mem, true),
 
@@ -128,14 +127,13 @@ impl Cpu {
         // Load opcode
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
         // let mut flag = false;
-
-        // Print disassemble if it has never been printed before
-        if !self.printed.contains(&self.pc) {
-            self.printed.insert(self.pc);
-            // println!("Before: {:X?}", self);
-            println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
-            // flag = true;
+        if self.print {
+            println!("CPU: {:0X?}", self);
+            println!("Executing 0x{:04X}: {}    {}", 
+                     self.pc, instruction, opcode);
         }
+        // Change as debugging needed.
+        // else if self.pc == 0x00E0 { self.print = true; }
 
         //Increment PC
         self.pc += op_size;
@@ -143,7 +141,6 @@ impl Cpu {
         // Execute
         self.execute_op(opcode, mem);
 
-        // if flag { println!("After: {:X?}", self); }
 
         op_time
     }
