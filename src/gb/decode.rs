@@ -137,7 +137,7 @@ pub enum Op {
     SCF,
     CCF,
 
-    RST(u8),
+    RST(u16),
 
     RET(OptFlag),
     RETI,

@@ -46,6 +46,14 @@ impl Cpu {
                 self.set_flag(Flag::N, true);
                 self.set_flag(Flag::H, true);
             }
+            SCF => self.set_flag(Flag::C, true),
+            CCF => self.set_flag(Flag::C, false),
+
+            RST(op) => {
+                let pc = self.pc;
+                self.push(pc, mem);
+                self.pc = op;
+            }
 
             RET(fl) => self.ret(fl, mem),
             RETI => {
@@ -147,6 +155,12 @@ impl Cpu {
             RRC(op) => self.rrc(op, mem),
             RRA => self.rr(ByteR::A, mem),
             RRCA => self.rrc(ByteR::A, mem),
+
+            SLA(op) => self.sla(op, mem),
+            SRA(op) => self.sra(op, mem),
+
+            SWAP(op) => self.swap(op, mem),
+            SRL(op) => self.srl(op, mem),
 
             BIT(n, o) => self.bit(n, o, mem),
             RES(n, o) => self.res(n, o, mem),
@@ -438,6 +452,48 @@ impl Cpu {
         self.write_8(reg, regval, mem);
     }
 
+    fn sla(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let data = self.read_8(reg.clone(), mem);
+        self.set_flag(Flag::C, data & 0xF0 != 0);
+        let regval = data << 1;
+
+        self.set_flag(Flag::Z, regval == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, regval, mem);
+    }
+
+    fn sra(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let data = self.read_8(reg.clone(), mem);
+        self.set_flag(Flag::C, data & 0x01 != 0);
+        let regval = data >> 1;
+
+        self.set_flag(Flag::Z, regval == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, regval, mem);
+    }
+
+    fn swap(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let regval = self.read_8(reg.clone(), mem).rotate_left(4);
+
+        self.set_flag(Flag::Z, regval == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.set_flag(Flag::C, false);
+        self.write_8(reg, regval, mem);
+    }
+
+    fn srl(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        let data = self.read_8(reg.clone(), mem);
+        self.set_flag(Flag::C, data & 0x01 != 0);
+        let regval = (data >> 1) & 0x7F;
+
+        self.set_flag(Flag::Z, regval == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.write_8(reg, regval, mem);
+    }
 
     fn bit(&mut self, n: u8, reg: ByteR, mem: &mut mem::Mem) {
         let zero = self.read_8(reg, mem) & (0x1 << n) == 0;
