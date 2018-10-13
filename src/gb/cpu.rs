@@ -41,7 +41,17 @@ impl Cpu {
         match opcode {
             NOP => {}
 
+            CPL => {
+                self.a = !self.a;
+                self.set_flag(Flag::N, true);
+                self.set_flag(Flag::H, true);
+            }
+
             RET(fl) => self.ret(fl, mem),
+            RETI => {
+                self.ret(decode::OptFlag(None), mem);
+                mem.set_ime(true);
+            }
             CALL(fl, o) => self.call(fl, o, mem),
 
             PUSH(o) => {
@@ -52,6 +62,7 @@ impl Cpu {
                 let data = self.pop(mem);
                 self.write_16(o, data);
             }
+
             LD8(o1, o2) => {
                 let data = self.read_8(o2, mem);
                 self.write_8(o1, data, mem)
@@ -59,6 +70,11 @@ impl Cpu {
             LD16(o1, o2) => {
                 let data = self.read_16(o2);
                 self.write_16(o1, data)
+            }
+            LDMem(o1, o2) => {
+                let addr = self.read_16(o1);
+                let data = self.read_16(o2);
+                mem.write_16(addr, data);
             }
 
             INC8(o) => {
@@ -94,12 +110,26 @@ impl Cpu {
             }
 
             ADD8(o1, o2) => self.add(o2, mem, false),
-            // ADD16(o1, o2),
+            ADD16(o1, o2) => {
+                let src = self.read_16(o2);
+                let dest = self.read_16(o1.clone());
+
+                let h = ((src & 0x0FFF) + (dest & 0x0FFF)) > 0x0FFF;
+                let (result, c) = dest.overflowing_add(src);
+
+                self.write_16(o1, result);
+
+                self.set_flag(Flag::N, false);
+                self.set_flag(Flag::H, h);
+                self.set_flag(Flag::C, c);
+            }
             ADC(_o1, o2) => self.add(o2, mem, true),
 
             SUB(o) => self.sub(o, mem, false),
             SBC(o) => self.sub(o, mem, false),
 
+            AND(o) => self.and(o, mem),
+            OR(o) => self.or(o, mem),
             XOR(o) => self.xor(o, mem),
             CP(o) => {
                 self.cp(o, mem, false);
@@ -119,6 +149,8 @@ impl Cpu {
             RRCA => self.rrc(ByteR::A, mem),
 
             BIT(n, o) => self.bit(n, o, mem),
+            RES(n, o) => self.res(n, o, mem),
+            SET(n, o) => self.set(n, o, mem),
 
             DI => mem.set_ime(false),
             EI => mem.set_ime(true),
@@ -133,7 +165,7 @@ impl Cpu {
         // let mut flag = false;
         if self.print {
             println!("CPU: {:0X?}", self);
-            println!("Executing 0x{:04X}: {}    {}", 
+            println!("Executing 0x{:04X}: {}    {}",
                      self.pc, instruction, opcode);
         }
         // Change as debugging needed.
@@ -265,6 +297,24 @@ impl Cpu {
         data
     }
 
+    fn and(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        self.a = self.read_8(reg, mem) & self.a;
+        let zero = self.a == 0;
+        self.set_flag(Flag::Z, zero);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, true);
+        self.set_flag(Flag::C, false);
+    }
+
+    fn or(&mut self, reg: ByteR, mem: &mut mem::Mem) {
+        self.a = self.read_8(reg, mem) | self.a;
+        let zero = self.a == 0;
+        self.set_flag(Flag::Z, zero);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, false);
+        self.set_flag(Flag::C, false);
+    }
+
     fn xor(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         self.a = self.read_8(reg, mem) ^ self.a;
         let zero = self.a == 0;
@@ -345,7 +395,7 @@ impl Cpu {
         self.set_flag(Flag::C, regval & 0x80 != 0);
         let valout = (regval << 1) | match oldC {
             true => 1,
-            false => 0,        
+            false => 0,
         };
 
         // output
@@ -394,6 +444,20 @@ impl Cpu {
         self.set_flag(Flag::Z, zero);
         self.set_flag(Flag::N, false);
         self.set_flag(Flag::H, true);
+    }
+
+    fn set(&mut self, n: u8, reg: ByteR, mem: &mut mem::Mem) {
+        let mask = 1 << n;
+        let data = self.read_8(reg.clone(), mem) | mask;
+
+        self.write_8(reg, data, mem);
+    }
+
+    fn res(&mut self, n: u8, reg: ByteR, mem: &mut mem::Mem) {
+        let mask = 1 << n;
+        let data = self.read_8(reg.clone(), mem) & !mask;
+
+        self.write_8(reg, data, mem);
     }
 
     fn read_flag(&self, flag: Flag) -> bool {

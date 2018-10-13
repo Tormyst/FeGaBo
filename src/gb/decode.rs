@@ -148,7 +148,7 @@ pub enum Op {
 
     LD8(ByteR, ByteR),
     LD16(WordR, WordR),
-    LDMem(ByteR, WordR),
+    LDMem(WordR, WordR),
 
     INC8(ByteR),
     INC16(WordR),
@@ -208,6 +208,8 @@ impl fmt::Display for Op {
             SCF => write!(f, "SCF"),
             CCF => write!(f, "CCF"),
 
+            RST(op) => write!(f, "RST {}", op),
+
             RET(fl) => write!(f, "RET {}", fl),
             RETI => write!(f, "RETI"),
             CALL(fl, o) => write!(f, "CALL {}{}", fl, o),
@@ -217,6 +219,7 @@ impl fmt::Display for Op {
 
             LD8(op1, op2) => write!(f, "LD {}, {}", op1, op2),
             LD16(op1, op2) => write!(f, "LD {}, {}", op1, op2),
+            LDMem(op1, op2) => write!(f, "LD ({}), {}", op1, op2),
 
             AND(op) => write!(f, "AND {}", op),
             OR(op) => write!(f, "OR {}", op),
@@ -250,14 +253,18 @@ impl fmt::Display for Op {
             RRA => write!(f, "RRA"),
             RRCA => write!(f, "RRCA"),
 
+            SLA(op) => write!(f, "SLA {}", op),
+            SRA(op) => write!(f, "SRA {}", op),
+
+            SWAP(op) => write!(f, "SWAP {}", op),
+            SRL(op) => write!(f, "SRL {}", op),
+
             BIT(n, o) => write!(f, "BIT {}, {}", n, o),
             RES(n, o) => write!(f, "RES {}, {}", n, o),
             SET(n, o) => write!(f, "SET {}, {}", n, o),
 
             DI => write!(f, "DI"),
             EI => write!(f, "EI"),
-
-            _ => panic!("{:?} has no good display", self),
         }
     }
 }
@@ -305,7 +312,7 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
         0x05 => op!(op, DEC8(B), 4),
         0x06 => op!(op, op2, LD8(B, imm8!(op2)), 8),
         0x07 => op!(op, RLCA, 4),
-        0x08 => op!(op, op2, op3, LDMem(Mem(imm16!(op2, op3)), SP), 20),
+        0x08 => op!(op, op2, op3, LDMem(imm16!(op2, op3), SP), 20),
         0x09 => op!(op, ADD16(HL, BC), 8),
         0x0A => op!(op, LD8(A, Mem(BC)), 8),
         0x0B => op!(op, DEC16(BC), 8),
