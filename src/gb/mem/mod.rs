@@ -90,47 +90,10 @@ impl Oam {
     }
 }
 
-struct Io {
-    ppu: ppu::PPU,
-    gbp: gbp::GBP,
-}
-
-
-impl Io {
-    fn new() -> Self {
-        Io {
-            ppu: ppu::PPU::new(),
-            gbp: gbp::GBP::new(),
-        }
-    }
-
-    fn read(&self, addr: u16) -> Option<u8> {
-        match addr {
-            0xFF00 => None, // Joypad
-            0xFF10...0xFF3F => Some(0x00), // Audio device not implemented.
-            0xFF40...0xFF45 => self.ppu.read(addr), // PPU state
-            0xFF47...0xFF49 => self.gbp.read(addr), // Pallet for GB
-            _ => panic!("Unknown IO port read at {:X}", addr),
-        }
-    }
-
-    fn write(&mut self, addr: u16, data: u8) -> bool {
-        match addr {
-            0xFF00 => false, // Joypad
-            0xFF10...0xFF3F => true, // Audio device not implemented.
-            0xFF40...0xFF45 => self.ppu.write(addr, data), // PPU state
-            0xFF47...0xFF49 => self.gbp.write(addr, data), // Pallet for GB
-            _ => panic!("Unknown IO port write at {:X}", addr),
-        }
-    }
-    fn time_passes(&mut self, time: usize) -> Option<Vec<u8>> {
-        self.ppu.time_passes(time)
-    }
-}
-
 pub struct Mem {
     map_holder: Box<MemMapper>,
     screen: Box<[u8; gameboy_screen_buffer_size as usize]>,
+    ime: bool,
 }
 
 pub struct GbMapper {
@@ -140,9 +103,11 @@ pub struct GbMapper {
     wram: [u8; kb_8],
     boot: bool,
     oam: Oam,
-    io: Io,
     hram: [u8; 126],
-    ie: u8,
+    interupt_enable: u8,
+    interupt_flag: u8,
+    ppu: ppu::PPU,
+    gbp: gbp::GBP,
 }
 
 impl GbMapper {
@@ -154,9 +119,11 @@ impl GbMapper {
             wram: [0; kb_8],
             boot: false,
             oam: Oam::new(),
-            io: Io::new(),
             hram: [0; 126],
-            ie: 0,
+            interupt_enable: 0,
+            interupt_flag: 0,
+            ppu: ppu::PPU::new(),
+            gbp: gbp::GBP::new(),
         }
     }
 
@@ -175,9 +142,11 @@ impl GbMapper {
             wram: [0; kb_8],
             boot: false,
             oam: Oam::new(),
-            io: Io::new(),
             hram: [0; 126],
-            ie: 0,
+            interupt_enable: 0,
+            interupt_flag: 0,
+            ppu: ppu::PPU::new(),
+            gbp: gbp::GBP::new(),
         }
     }
 }
@@ -194,11 +163,14 @@ impl MemMapper for GbMapper {
             0xE000...0xFDFF => Some(self.wram[addr as usize & 0x0FFF]),
             0xFE00...0xFE9F => self.oam.read(addr),
             0xFEA0...0xFEFF	=> None, // Not Usable
-            0xFF00...0xFF4F => self.io.read(addr), // I/O Registers
+            0xFF00 => None, // Joypad
+            0xFF0F => Some(self.interupt_flag),
+            0xFF10...0xFF3F => Some(0x00), //Audio device not implemented.
+            0xFF40...0xFF45 => self.ppu.read(addr), // PPU state
+            0xFF47...0xFF49 => self.gbp.read(addr), // Pallet for GB
             0xFF50 => Some(match self.boot{true => 0xFE, false => 0xFF}),
-            0xFF51...0xFF7F	=> self.io.read(addr), //more I/O Registers
             0xFF80...0xFFFE => Some(self.hram[addr as usize & 0x007F]),
-            0xFFFF => Some(self.ie),
+            0xFFFF => Some(self.interupt_enable),
             _ => None,
         }
     }
@@ -212,20 +184,24 @@ impl MemMapper for GbMapper {
             0xE000...0xFDFF => {self.wram[addr as usize & 0x0FFF] = data; true}
             0xFE00...0xFE9F => self.oam.write(addr, data),
             0xFEA0...0xFEFF	=> false, // Not Usable
-            0xFF00...0xFF4F	=> self.io.write(addr, data), //I/O Registers
+            0xFF00 => false, // Joypad
+            0xFF01...0xFF02 => true, // Not implemented serial
+            0xFF0F => {self.interupt_flag = data; true}
+            0xFF10...0xFF3F => true, // Audio device not implemented.
+            0xFF40...0xFF45 => self.ppu.write(addr, data), // PPU state
+            0xFF47...0xFF49 => self.gbp.write(addr, data), // Pallet for GB
             0xFF50 => {self.boot = (0x01 & data) > 0; true},
-            0xFF51...0xFF7F	=> self.io.write(addr, data), //I/O Registers
             0xFF80...0xFFFE => {self.hram[addr as usize & 0x007F] = data; true}
-            0xFFFF => {self.ie = data; true},
+            0xFFFF => {self.interupt_enable = data; true},
             _ => false,
         }
     }
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
-        self.io.time_passes(time)
+        self.ppu.time_passes(time)
     }
     fn render(&self, row: u8, buffer: &mut [u8]) {
-        let x_offset = self.io.ppu.scx;
-        let y_offset = self.io.ppu.scy + row;
+        let x_offset = self.ppu.scx;
+        let y_offset = self.ppu.scy + row;
         for i in 0..GAMEBOY_WIDTH as u8 {
             let buff_offset = i as usize * 3;
             self.renderBackground(x_offset.wrapping_add(i), 
@@ -235,7 +211,7 @@ impl MemMapper for GbMapper {
     }
 
     fn print_background_map(&self) {
-        let map_offset = match self.io.ppu.lcdc_get(3) {
+        let map_offset = match self.ppu.lcdc_get(3) {
             true => 0x9C00,
             false => 0x9800, 
         };
@@ -273,7 +249,7 @@ impl GbMapper {
     fn renderBackground(&self, x:u8,y:u8, buffer: &mut [u8]){
         //println!("Background x: {}, y: {}", x, y);
         // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
-        let map_offset = match self.io.ppu.lcdc_get(3) {
+        let map_offset = match self.ppu.lcdc_get(3) {
             true => 0x9C00,
             false => 0x9800, 
         };
@@ -285,7 +261,7 @@ impl GbMapper {
         let map_data = self.read(map_location).unwrap();
 
         // This + the next 15 are the sprite
-        let sprite_base = match self.io.ppu.lcdc_get(4) {
+        let sprite_base = match self.ppu.lcdc_get(4) {
             true => (map_data as u16 * 16) + 0x8000,
             // This needs to be a signed offset
             false => ((map_data as i16 * 16) + 0x9000) as u16,
@@ -306,7 +282,7 @@ impl GbMapper {
 
         // println!(" color {:1X} from {:2X}", pixel_color, pixel_byte);
 
-        self.io.gbp.apply(gbp::Pallet::BGP, pixel_color, buffer);
+        self.gbp.apply(gbp::Pallet::BGP, pixel_color, buffer);
     }
 }
 
@@ -315,6 +291,7 @@ impl Mem {
         Mem { 
             map_holder: Box::new(mapper), 
             screen: Box::new([0; gameboy_screen_buffer_size as usize]),
+            ime: false,
         }
     }
 
@@ -331,6 +308,10 @@ impl Mem {
 
     pub fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
         self.map_holder.time_passes(time)
+    }
+
+    pub fn set_ime(&mut self, value: bool) {
+        self.ime = value;
     }
     
     pub fn render(&mut self, row: usize) -> bool{

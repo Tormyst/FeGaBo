@@ -106,6 +106,7 @@ impl Cpu {
             }
 
             JR(fl, o) => self.jr(fl, o, mem),
+            JP(fl, o) => self.jp(fl, o, mem),
 
             RL(op) => self.rl(op, mem),
             RLC(op) => self.rlc(op, mem),
@@ -118,6 +119,9 @@ impl Cpu {
             RRCA => self.rrc(ByteR::A, mem),
 
             BIT(n, o) => self.bit(n, o, mem),
+
+            DI => mem.set_ime(false),
+            EI => mem.set_ime(true),
 
             _ => panic!("Instruction {} not implemented.", opcode),
         }
@@ -323,6 +327,12 @@ impl Cpu {
     fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem) {
         if self.flagCondition(fl) {
             self.pc = self.pc.wrapping_add(o as u16);
+        }
+    }
+
+    fn jp(&mut self, fl: decode::OptFlag, o: WordR, mem: &mut mem::Mem) {
+        if self.flagCondition(fl) {
+            self.pc = self.read_16(o);
         }
     }
 

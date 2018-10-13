@@ -254,6 +254,9 @@ impl fmt::Display for Op {
             RES(n, o) => write!(f, "RES {}, {}", n, o),
             SET(n, o) => write!(f, "SET {}, {}", n, o),
 
+            DI => write!(f, "DI"),
+            EI => write!(f, "EI"),
+
             _ => panic!("{:?} has no good display", self),
         }
     }
