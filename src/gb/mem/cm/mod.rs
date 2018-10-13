@@ -26,7 +26,8 @@ impl CartrageMapper for BaseROM {
         Some(self.rom[addr as usize])
     }
     fn write(&mut self, addr: u16, data: u8) -> bool {
-        false
+        eprintln!("Unexpected write to ROM.");
+        true
     }
 
     fn read_ram(&self, addr: u16) -> Option<u8> {

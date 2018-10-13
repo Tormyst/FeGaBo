@@ -77,7 +77,7 @@ impl Oam {
     }
 
     fn entryNum(addr: u16) -> (usize, usize) {
-        ((addr & 0x00FC) as usize, (addr & 0x0003) as usize)
+        (((addr >> 2) & 0x003F) as usize, (addr & 0x0003) as usize)
     }
 
     fn read(&self, addr: u16) -> Option<u8> {
@@ -103,7 +103,7 @@ pub struct GbMapper {
     wram: [u8; kb_8],
     boot: bool,
     oam: Oam,
-    hram: [u8; 126],
+    hram: [u8; 127],
     interupt_enable: u8,
     interupt_flag: u8,
     ppu: ppu::PPU,
@@ -119,7 +119,7 @@ impl GbMapper {
             wram: [0; kb_8],
             boot: false,
             oam: Oam::new(),
-            hram: [0; 126],
+            hram: [0; 127],
             interupt_enable: 0,
             interupt_flag: 0,
             ppu: ppu::PPU::new(),
@@ -142,7 +142,7 @@ impl GbMapper {
             wram: [0; kb_8],
             boot: false,
             oam: Oam::new(),
-            hram: [0; 126],
+            hram: [0; 127],
             interupt_enable: 0,
             interupt_flag: 0,
             ppu: ppu::PPU::new(),
@@ -162,10 +162,10 @@ impl MemMapper for GbMapper {
             0xC000...0xDFFF => Some(self.wram[addr as usize & 0x0FFF]),
             0xE000...0xFDFF => Some(self.wram[addr as usize & 0x0FFF]),
             0xFE00...0xFE9F => self.oam.read(addr),
-            0xFEA0...0xFEFF	=> None, // Not Usable
-            0xFF00 => None, // Joypad
+            // 0xFEA0...0xFEFF Not Used by anything.
+            // 0xFF00 Joypad
             0xFF0F => Some(self.interupt_flag),
-            0xFF10...0xFF3F => Some(0x00), //Audio device not implemented.
+            0xFF10...0xFF3F => Some(0xFF), // Audio device not implemented.
             0xFF40...0xFF45 => self.ppu.read(addr), // PPU state
             0xFF47...0xFF49 => self.gbp.read(addr), // Pallet for GB
             0xFF50 => Some(match self.boot{true => 0xFE, false => 0xFF}),
@@ -183,8 +183,8 @@ impl MemMapper for GbMapper {
             0xC000...0xDFFF => {self.wram[addr as usize & 0x0FFF] = data; true}
             0xE000...0xFDFF => {self.wram[addr as usize & 0x0FFF] = data; true}
             0xFE00...0xFE9F => self.oam.write(addr, data),
-            0xFEA0...0xFEFF	=> false, // Not Usable
-            0xFF00 => false, // Joypad
+            // 0xFEA0...0xFEFF Not Usable.  Tetris write here.
+            // 0xFF00 => false, Joypad
             0xFF01...0xFF02 => true, // Not implemented serial
             0xFF0F => {self.interupt_flag = data; true}
             0xFF10...0xFF3F => true, // Audio device not implemented.
@@ -300,8 +300,9 @@ impl Mem {
         match self.map_holder.read(addr) {
             Some(data) => data,
             None => {
-                panic!("Memory read failed for address: {:04X}.",
+                eprintln!("Memory read failed for address: {:04X}.",
                          addr);
+                0xFF
             }
         }
     }
@@ -340,7 +341,7 @@ impl Mem {
     pub fn write_8(&mut self, addr: u16, data: u8) {
         // Look value up in memory map
         if !self.map_holder.write(addr, data) {
-            panic!("Memory write failed for address: {:04X}", addr)
+            eprintln!("Memory write failed for address: {:04X}", addr)
         }
     }
 
