@@ -40,6 +40,9 @@ impl Cpu {
         use gb::decode::Op::*;
         match opcode {
             NOP => {}
+            
+            STOP => {}
+            HALT => {}
 
             CPL => {
                 self.a = !self.a;

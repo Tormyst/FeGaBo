@@ -2,20 +2,20 @@ use std::fs::File;
 use std::io::Read;
 
 use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
-
+use super::{gameboy_screen_buffer_size, gameboy_background_size, gameboy_sprite_table_size};
+    
 mod ppu;
 mod gbp;
 mod cm;
 
 const kb_8: usize = 0x2000;
-const gameboy_screen_buffer_size: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
 
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
     fn write(&mut self, addr: u16, data: u8) -> bool;
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
     fn render(&self, row: u8, buffer: &mut [u8]);
-    fn print_background_map(&self);
+    fn render_background_map(&self, buffer: &mut [u8]);
     fn print_sprite_table(&self);
 }
 
@@ -93,6 +93,8 @@ impl Oam {
 pub struct Mem {
     map_holder: Box<MemMapper>,
     screen: Box<[u8; gameboy_screen_buffer_size as usize]>,
+    bgscreen: Box<[u8; gameboy_background_size as usize]>,
+    stscreen: Box<[u8; gameboy_sprite_table_size as usize]>,
     ime: bool,
 }
 
@@ -210,25 +212,13 @@ impl MemMapper for GbMapper {
         }
     }
 
-    fn print_background_map(&self) {
-        let map_offset = match self.ppu.lcdc_get(3) {
-            true => 0x9C00,
-            false => 0x9800, 
-        };
-        println!("Using Map: {:0X}", map_offset);
-        print!("   ");
-        (0..32).for_each(move |x| print!(" {:2X}", x));
-        println!();
-        for i in 0..32 {
-            print!("{:2X}:",i);
-            (0..32).for_each(move |x| 
-                             print!(" {:2X}", self.read(map_offset 
-                                                       + (i as u16 * 32) 
-                                                       + x
-                                                       ).unwrap()
-                                    ));
-            println!();
-        }
+    fn render_background_map(&self, buffer: &mut [u8]) {
+        (0..255).for_each(
+            |y| 
+            (0..255).for_each(|x| 
+                              {let loc = ((y as usize*256+x as usize)*3); 
+                                  self.renderBackground(x,y,&mut buffer[loc..loc+3])
+                              }))
     }
     fn print_sprite_table(&self) {
         println!("Character Ram");
@@ -291,6 +281,8 @@ impl Mem {
         Mem { 
             map_holder: Box::new(mapper), 
             screen: Box::new([0; gameboy_screen_buffer_size as usize]),
+            bgscreen: Box::new([0; gameboy_background_size as usize]),
+            stscreen: Box::new([0; gameboy_sprite_table_size as usize]),
             ime: false,
         }
     }
@@ -333,6 +325,25 @@ impl Mem {
         use std::mem::swap;
 
         swap(&mut self.screen, other);
+        // Prints that should be done once a frame:
+        // self.map_holder.print_background_map();
+        // self.map_holder.print_sprite_table();
+    }
+
+    pub fn background_swap(&mut self, other: &mut Box<[u8; gameboy_background_size as usize]>) {
+        use std::mem::swap;
+
+        self.map_holder.render_background_map(&mut other[..]);
+        swap(&mut self.bgscreen, other);
+        // Prints that should be done once a frame:
+        // self.map_holder.print_background_map();
+        // self.map_holder.print_sprite_table();
+    }
+
+    pub fn sprite_swap(&mut self, other: &mut Box<[u8; gameboy_sprite_table_size as usize]>) {
+        use std::mem::swap;
+
+        swap(&mut self.stscreen, other);
         // Prints that should be done once a frame:
         // self.map_holder.print_background_map();
         // self.map_holder.print_sprite_table();
