@@ -3,7 +3,7 @@ use std::io::Read;
 
 use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
 use super::{gameboy_screen_buffer_size, gameboy_background_size, gameboy_sprite_table_size};
-    
+
 mod ppu;
 mod gbp;
 mod cm;
@@ -16,7 +16,7 @@ pub trait MemMapper {
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
     fn render(&self, row: u8, buffer: &mut [u8]);
     fn render_background_map(&self, buffer: &mut [u8]);
-    fn print_sprite_table(&self);
+    fn render_sprite_table(&self, buffer: &mut [u8]);
 }
 
 
@@ -206,42 +206,54 @@ impl MemMapper for GbMapper {
         let y_offset = self.ppu.scy + row;
         for i in 0..GAMEBOY_WIDTH as u8 {
             let buff_offset = i as usize * 3;
-            self.renderBackground(x_offset.wrapping_add(i), 
-                                  y_offset, 
-                                  &mut buffer[buff_offset..buff_offset + 3]);
+            self.renderBackground(x_offset.wrapping_add(i),
+                                  y_offset,
+                                  &mut buffer[buff_offset..buff_offset + 3], None);
         }
     }
 
     fn render_background_map(&self, buffer: &mut [u8]) {
         (0..255).for_each(
-            |y| 
-            (0..255).for_each(|x| 
-                              {let loc = ((y as usize*256+x as usize)*3); 
-                                  self.renderBackground(x,y,&mut buffer[loc..loc+3])
+            |y|
+            (0..255).for_each(|x|
+                              {let loc = ((y as usize*256+x as usize)*3);
+                                  self.renderBackground(x,y,&mut buffer[loc..loc+3], Some(false))
+                              }));
+        let loc_offset = 255*255*3;
+        (0..255).for_each(
+            |y|
+            (0..255).for_each(|x|
+                              {let loc = ((y as usize*256+x as usize)*3) + loc_offset;
+                                  self.renderBackground(x,y,&mut buffer[loc..loc+3], Some(true))
                               }))
     }
-    fn print_sprite_table(&self) {
+    fn render_sprite_table(&self, buffer: &mut [u8]) {
+        /*
         println!("Character Ram");
         for i in 0..384 {
             let addr = (i*16) + 0x8000;
             print!("Tile {:3X} 0x{:04X}:",i, addr);
-            (0..16).for_each(move |x| 
+            (0..16).for_each(move |x|
                              print!(" {:2X}", self.read(addr
                                                        + x
                                                        ).unwrap()
                                     ));
             println!();
         }
+        */
     }
 }
 
 impl GbMapper {
-    fn renderBackground(&self, x:u8,y:u8, buffer: &mut [u8]){
+    fn renderBackground(&self, x:u8,y:u8, buffer: &mut [u8], map_offset: Option<bool>){
         //println!("Background x: {}, y: {}", x, y);
         // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
-        let map_offset = match self.ppu.lcdc_get(3) {
+        let map_offset = match match map_offset {
+                Some(val) => val,
+                None => self.ppu.lcdc_get(3),
+            } {
             true => 0x9C00,
-            false => 0x9800, 
+            false => 0x9800,
         };
 
         let x:u16 = x as u16;
@@ -256,7 +268,7 @@ impl GbMapper {
             // This needs to be a signed offset
             false => ((map_data as i16 * 16) + 0x9000) as u16,
         };
-        
+
         // Move to the correct row
         let x_offset = 7 - (x % 8);
         let sprite_location = sprite_base + ((y % 8) * 2);
@@ -278,8 +290,8 @@ impl GbMapper {
 
 impl Mem {
     pub fn new_gb(mapper: GbMapper) -> Self {
-        Mem { 
-            map_holder: Box::new(mapper), 
+        Mem {
+            map_holder: Box::new(mapper),
             screen: Box::new([0; gameboy_screen_buffer_size as usize]),
             bgscreen: Box::new([0; gameboy_background_size as usize]),
             stscreen: Box::new([0; gameboy_sprite_table_size as usize]),
@@ -306,7 +318,7 @@ impl Mem {
     pub fn set_ime(&mut self, value: bool) {
         self.ime = value;
     }
-    
+
     pub fn render(&mut self, row: usize) -> bool{
         if row < 144 {
             // Actually render
@@ -343,6 +355,7 @@ impl Mem {
     pub fn sprite_swap(&mut self, other: &mut Box<[u8; gameboy_sprite_table_size as usize]>) {
         use std::mem::swap;
 
+        self.map_holder.render_sprite_table(&mut other[..]);
         swap(&mut self.stscreen, other);
         // Prints that should be done once a frame:
         // self.map_holder.print_background_map();

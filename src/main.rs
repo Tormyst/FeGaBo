@@ -81,7 +81,7 @@ impl Window {
     fn create_BGMap_internal<'a>(texture_creator: &'a TextureCreator<WindowContext>)
                                   -> Texture<'a> {
         texture_creator
-            .create_texture_streaming(PixelFormatEnum::RGB24, 32 * 8, 32 * 8)
+            .create_texture_streaming(PixelFormatEnum::RGB24, 32 * 8, 32 * 2 * 8)
             .unwrap()
     }
 
@@ -131,8 +131,6 @@ impl Window {
                                     .1
                                     .with_lock(None, |buffer: &mut [u8], pitch: usize| {
                                         let frame = gbconnect.bgcanvas.lock().unwrap();
-                                        eprintln!("BGMap: {}", frame.len());
-                                        eprintln!("buffer: {}", buffer.len());
                                         buffer.copy_from_slice(&**frame);
                                     })
                                     .unwrap();
@@ -140,21 +138,21 @@ impl Window {
                                                  Some(Rect::new((RESOLUTION_MULTEPLYER * GAMEBOY_WIDTH) as i32,
                                                                 0,
                                                                 256,
-                                                                256))).unwrap();
+                                                                256 *2))).unwrap();
                             },
                             TextureType::SpriteTable => {
                                 texture
                                     .1
                                     .with_lock(None, |buffer: &mut [u8], pitch: usize| {
                                         let frame = gbconnect.stcanvas.lock().unwrap();
-                                        eprintln!("sprite table: {}", frame.len());
-                                        eprintln!("buffer: {}", buffer.len());
+                                        // eprintln!("sprite table: {}", frame.len());
+                                        // eprintln!("buffer: {}", buffer.len());
                                         buffer.copy_from_slice(&**frame);
                                     })
                                     .unwrap();
                                 self.canvas.copy(&texture.1, None, 
                                                  Some(Rect::new((RESOLUTION_MULTEPLYER * GAMEBOY_WIDTH) as i32,
-                                                                256,
+                                                                256*2,
                                                                 SPRITES_PER_ROW * 8, 
                                                                 SPRITE_ROWS * 8))).unwrap();
                             }

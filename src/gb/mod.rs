@@ -4,7 +4,7 @@ use std::sync::{Mutex, Arc};
 use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
 
 const gameboy_screen_buffer_size: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
-const gameboy_background_size: u32 = 256 * 256 * 3;
+const gameboy_background_size: u32 = 256 * 256 * 3 * 2;
 const gameboy_sprite_table_size: u32 = 256 * 96 * 3;
 
 mod cpu;
