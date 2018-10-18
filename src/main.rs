@@ -70,7 +70,6 @@ impl Window {
             .push((TextureType::Screen, Window::create_screen_internal(&self.texture_creator)));
         //self.create_screen();
         let mut event_pump = self.sdl_context.event_pump().unwrap();
-        let mut frame: u32 = 0;
         let mut fps = 0;
         let mut start_time = SystemTime::now();
         'running: loop {
@@ -85,12 +84,13 @@ impl Window {
 
             match gbconnect.from_gb.try_recv() {
                 Ok(event) => {
+                    eprintln!("Dummy event {} in main", event);
                     for texture in &mut live_textures {
                         match texture.0 {
                             TextureType::Screen => {
                                 texture
                                     .1
-                                    .with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                                    .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
                                         let frame = gbconnect.canvas.lock().unwrap();
                                         buffer.copy_from_slice(&**frame);
                                     })
@@ -102,7 +102,7 @@ impl Window {
                     self.canvas.present();
                     fps += 1;
                     
-                    gbconnect.to_gb.send(frame as usize).unwrap();}
+                    gbconnect.to_gb.send(0).unwrap();}
                 Err(err) => {
                     match err {
                         TryRecvError::Disconnected => {

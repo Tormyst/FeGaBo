@@ -56,11 +56,10 @@ impl GBP {
     }
 
     pub fn apply(&self, p: Pallet, color: u8, buffer: &mut [u8]){
-        use std::io::Write;
         let p = match p { 
-            BGP => self.bgp,
-            OBP0 => self.obp0,
-            OBP1 => self.obp1,
+            Pallet::BGP => self.bgp,
+            Pallet::OBP0 => self.obp0,
+            Pallet::OBP1 => self.obp1,
         };
         let c = (p >> (color * 2)) & 0x03;
         match c {
@@ -70,5 +69,25 @@ impl GBP {
             3 => copy3!(buffer, 0),
             _ => unreachable!("There are only 4 colours"),
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gb::mem::gbp::Pallet;
+    use gb::mem::gbp::GBP;
+
+    #[test]
+    fn apply() {
+        let pallet = GBP {bgp: 0, obp0: 0b00011011, obp1: 0b00000000};
+        let mut buffer = vec![0,0,0];
+        pallet.apply(Pallet::OBP0, 2, &mut buffer[..]);
+        assert_eq!(buffer[0], 170);
+        assert_eq!(buffer[1], 170);
+        assert_eq!(buffer[2], 170);
+        pallet.apply(Pallet::OBP1, 1, &mut buffer[..]);
+        assert_eq!(buffer[0], 255);
+        assert_eq!(buffer[1], 255);
+        assert_eq!(buffer[2], 255);
     }
 }

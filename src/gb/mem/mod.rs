@@ -7,8 +7,8 @@ mod ppu;
 mod gbp;
 mod cm;
 
-const kb_8: usize = 0x2000;
-const gameboy_screen_buffer_size: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
+const KB_8: usize = 0x2000;
+const GAMEBOY_SCREEN_BUFFER_SIZE: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
 
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
@@ -34,15 +34,12 @@ impl BootRom {
             None => None,
         }
     }
-    fn write(&mut self, addr: u16, data: u8) -> bool {
-        false
-    }
 }
 
 #[derive(Copy, Clone)]
 struct OamEntry{y:u8, x:u8, t:u8, a:u8}
 
-const defaultOamEntry: OamEntry = OamEntry{y:0, x:0, t:0, a:0};
+const DEFAULT_OAM_ENTRY: OamEntry = OamEntry{y:0, x:0, t:0, a:0};
 
 impl OamEntry {
     fn write(&mut self, index: usize, data: u8) -> bool{
@@ -73,34 +70,34 @@ struct Oam {
 
 impl Oam {
     fn new() -> Self {
-        Oam { data: [defaultOamEntry;40] }
+        Oam { data: [DEFAULT_OAM_ENTRY;40] }
     }
 
-    fn entryNum(addr: u16) -> (usize, usize) {
+    fn entry_num(addr: u16) -> (usize, usize) {
         (((addr >> 2) & 0x003F) as usize, (addr & 0x0003) as usize)
     }
 
     fn read(&self, addr: u16) -> Option<u8> {
-        let (e, n) = Oam::entryNum(addr);
+        let (e, n) = Oam::entry_num(addr);
         Some(self.data[e].read(n))
     }
     fn write(&mut self, addr: u16, data: u8) -> bool {
-        let (e, n) = Oam::entryNum(addr);
+        let (e, n) = Oam::entry_num(addr);
         self.data[e].write(n, data)
     }
 }
 
 pub struct Mem {
     map_holder: Box<MemMapper>,
-    screen: Box<[u8; gameboy_screen_buffer_size as usize]>,
+    screen: Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>,
     ime: bool,
 }
 
 pub struct GbMapper {
     cartrage: Box<cm::CartrageMapper>,
     boot_rom: BootRom,
-    vram: [u8; kb_8],
-    wram: [u8; kb_8],
+    vram: [u8; KB_8],
+    wram: [u8; KB_8],
     boot: bool,
     oam: Oam,
     hram: [u8; 127],
@@ -115,8 +112,8 @@ impl GbMapper {
         GbMapper {
             cartrage: cm::new(cartrage),
             boot_rom: BootRom::new(vec![]),
-            vram: [0; kb_8],
-            wram: [0; kb_8],
+            vram: [0; KB_8],
+            wram: [0; KB_8],
             boot: false,
             oam: Oam::new(),
             hram: [0; 127],
@@ -138,8 +135,8 @@ impl GbMapper {
         GbMapper {
             cartrage: cm::new(cartrage),
             boot_rom: BootRom::new(buffer),
-            vram: [0; kb_8],
-            wram: [0; kb_8],
+            vram: [0; KB_8],
+            wram: [0; KB_8],
             boot: false,
             oam: Oam::new(),
             hram: [0; 127],
@@ -190,7 +187,7 @@ impl MemMapper for GbMapper {
             0xFF10...0xFF3F => true, // Audio device not implemented.
             0xFF40...0xFF45 => self.ppu.write(addr, data), // PPU state
             0xFF47...0xFF49 => self.gbp.write(addr, data), // Pallet for GB
-            0xFF50 => {self.boot = (0x01 & data) > 0; true},
+            0xFF50 => {self.boot = self.boot && (data & 0x01) > 0; true},
             0xFF80...0xFFFE => {self.hram[addr as usize & 0x007F] = data; true}
             0xFFFF => {self.interupt_enable = data; true},
             _ => false,
@@ -204,7 +201,7 @@ impl MemMapper for GbMapper {
         let y_offset = self.ppu.scy + row;
         for i in 0..GAMEBOY_WIDTH as u8 {
             let buff_offset = i as usize * 3;
-            self.renderBackground(x_offset.wrapping_add(i), 
+            self.render_background(x_offset.wrapping_add(i), 
                                   y_offset, 
                                   &mut buffer[buff_offset..buff_offset + 3]);
         }
@@ -246,7 +243,7 @@ impl MemMapper for GbMapper {
 }
 
 impl GbMapper {
-    fn renderBackground(&self, x:u8,y:u8, buffer: &mut [u8]){
+    fn render_background(&self, x:u8,y:u8, buffer: &mut [u8]){
         //println!("Background x: {}, y: {}", x, y);
         // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
         let map_offset = match self.ppu.lcdc_get(3) {
@@ -264,7 +261,7 @@ impl GbMapper {
         let sprite_base = match self.ppu.lcdc_get(4) {
             true => (map_data as u16 * 16) + 0x8000,
             // This needs to be a signed offset
-            false => ((map_data as i16 * 16) + 0x9000) as u16,
+            false => ((map_data as i16 * 16) as u16 + 0x9000),
         };
         
         // Move to the correct row
@@ -290,7 +287,7 @@ impl Mem {
     pub fn new_gb(mapper: GbMapper) -> Self {
         Mem { 
             map_holder: Box::new(mapper), 
-            screen: Box::new([0; gameboy_screen_buffer_size as usize]),
+            screen: Box::new([0; GAMEBOY_SCREEN_BUFFER_SIZE as usize]),
             ime: false,
         }
     }
@@ -329,7 +326,7 @@ impl Mem {
         }
     }
 
-    pub fn screen_swap(&mut self, other: &mut Box<[u8; gameboy_screen_buffer_size as usize]>) {
+    pub fn screen_swap(&mut self, other: &mut Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>) {
         use std::mem::swap;
 
         swap(&mut self.screen, other);

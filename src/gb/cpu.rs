@@ -1,8 +1,6 @@
 use super::decode;
-use super::decode::{ByteR, Flag, Op, WordR};
-use super::disassemble;
+use super::decode::{ByteR, Flag, WordR};
 use super::mem;
-use std::fmt::Debug;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -117,7 +115,7 @@ impl Cpu {
                 self.write_16(o, data)
             }
 
-            ADD8(o1, o2) => self.add(o2, mem, false),
+            ADD8(o) => self.add(o, mem, false),
             ADD16(o1, o2) => {
                 let src = self.read_16(o2);
                 let dest = self.read_16(o1.clone());
@@ -131,7 +129,7 @@ impl Cpu {
                 self.set_flag(Flag::H, h);
                 self.set_flag(Flag::C, c);
             }
-            ADC(_o1, o2) => self.add(o2, mem, true),
+            ADC(o) => self.add(o, mem, true),
 
             SUB(o) => self.sub(o, mem, false),
             SBC(o) => self.sub(o, mem, false),
@@ -143,8 +141,8 @@ impl Cpu {
                 self.cp(o, mem, false);
             }
 
-            JR(fl, o) => self.jr(fl, o, mem),
-            JP(fl, o) => self.jp(fl, o, mem),
+            JR(fl, o) => self.jr(fl, o),
+            JP(fl, o) => self.jp(fl, o),
 
             RL(op) => self.rl(op, mem),
             RLC(op) => self.rlc(op, mem),
@@ -178,12 +176,12 @@ impl Cpu {
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
         // let mut flag = false;
         if self.print {
-            println!("CPU: {:0X?}", self);
+            // println!("CPU: {:0X?}", self);
             println!("Executing 0x{:04X}: {}    {}",
                      self.pc, instruction, opcode);
         }
         // Change as debugging needed.
-        // else if self.pc == 0x00E0 { self.print = true; }
+        else if self.pc == 0x0000 { self.print = true; }
 
         //Increment PC
         self.pc += op_size;
@@ -242,14 +240,14 @@ impl Cpu {
                         unreachable!("All cases not handled here should have already been handled")
                     }
                 };
-                let retVal = ((high as u16) << 8) | low as u16;
+                let data = ((high as u16) << 8) | low as u16;
                 // Post read operation for increment and decrement
                 match reg {
-                    WordR::HLI => self.write_16(reg, retVal + 1),
-                    WordR::HLD => self.write_16(reg, retVal - 1),
+                    WordR::HLI => self.write_16(reg, data + 1),
+                    WordR::HLD => self.write_16(reg, data - 1),
                     _ => {}
                 }
-                retVal
+                data
             }
         }
     }
@@ -279,7 +277,7 @@ impl Cpu {
         };
     }
 
-    fn flagCondition(&self, fl: decode::OptFlag) -> bool {
+    fn flag_condition(&self, fl: decode::OptFlag) -> bool {
         match fl {
             decode::OptFlag(None) => true,
             decode::OptFlag(Some((flag, state))) => self.read_flag(flag) == state,
@@ -287,13 +285,13 @@ impl Cpu {
     }
 
     fn ret(&mut self, fl: decode::OptFlag, mem: &mut mem::Mem) {
-        if self.flagCondition(fl) {
+        if self.flag_condition(fl) {
             self.pc = self.pop(mem);
         }
     }
 
     fn call(&mut self, fl: decode::OptFlag, reg: WordR, mem: &mut mem::Mem) {
-        if self.flagCondition(fl) {
+        if self.flag_condition(fl) {
             let data = self.pc;
             self.push(data, mem);
             self.pc = self.read_16(reg);
@@ -388,14 +386,14 @@ impl Cpu {
         data
     }
 
-    fn jr(&mut self, fl: decode::OptFlag, o: i8, mem: &mut mem::Mem) {
-        if self.flagCondition(fl) {
+    fn jr(&mut self, fl: decode::OptFlag, o: i8) {
+        if self.flag_condition(fl) {
             self.pc = self.pc.wrapping_add(o as u16);
         }
     }
 
-    fn jp(&mut self, fl: decode::OptFlag, o: WordR, mem: &mut mem::Mem) {
-        if self.flagCondition(fl) {
+    fn jp(&mut self, fl: decode::OptFlag, o: WordR) {
+        if self.flag_condition(fl) {
             self.pc = self.read_16(o);
         }
     }
@@ -403,11 +401,11 @@ impl Cpu {
     fn rl(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         // setup
         let regval = self.read_8(reg.clone(), mem);
-        let oldC = self.read_flag(Flag::C);
+        let old_c = self.read_flag(Flag::C);
 
         // rotate
         self.set_flag(Flag::C, regval & 0x80 != 0);
-        let valout = (regval << 1) | match oldC {
+        let valout = (regval << 1) | match old_c {
             true => 1,
             false => 0,
         };
@@ -430,11 +428,11 @@ impl Cpu {
     fn rr(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         // setup
         let regval = self.read_8(reg.clone(), mem);
-        let oldc = self.read_flag(Flag::C) as u8;
+        let old_c = self.read_flag(Flag::C) as u8;
 
         // rotate
         self.set_flag(Flag::C, regval & 0x01 != 0);
-        let valout = (regval >> 1) | (oldc << 7);
+        let valout = (regval >> 1) | (old_c << 7);
 
         // output
         self.set_flag(Flag::Z, valout == 0);
