@@ -9,14 +9,16 @@ pub trait CartrageMapper {
 }
 
 pub fn new(cartrage: String) -> Box<CartrageMapper> {
-    let mut buffer = Vec::new();
-    let size = File::open(cartrage)
-        .unwrap()
-        .read_to_end(&mut buffer)
-        .unwrap();
-    match size {
-        0...0x10000 => Box::new(BaseROM { rom: buffer }),
-        _ => panic!("AAAA cartrage too big."),
+    match File::open(cartrage) {
+        Ok(mut file) => { 
+            let mut buffer = Vec::new();
+            let size = file.read_to_end(&mut buffer).unwrap();
+            match size {
+                0...0x10000 => Box::new(BaseROM { rom: buffer }),
+                _ => panic!("AAAA cartrage too big."),
+            }
+        }
+        Err(_) => Box::new(NoneCartrageMapper {}),
     }
 }
 
@@ -45,7 +47,7 @@ pub struct NoneCartrageMapper {}
 
 impl CartrageMapper for NoneCartrageMapper {
     fn read(&self, _addr: u16) -> Option<u8> {
-        Some(0xFF)
+        None
     }
     fn write(&mut self, _addr: u16, _data: u8) -> bool {
         false
