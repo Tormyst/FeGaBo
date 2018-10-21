@@ -38,20 +38,27 @@ impl GBP {
     pub fn new() -> Self {
         GBP {bgp: 0, obp0: 0, obp1: 0}
     }
-    pub fn read(&self, addr: u16) -> Option<u8> {
+    fn mem_to_pallet(addr: u16) -> Option<Pallet> {
         match addr {
-            0xFF47 => Some(self.bgp),
-            0xFF48 => Some(self.obp0),
-            0xFF49 => Some(self.obp1),
+            0xFF47 => Some(Pallet::BGP),
+            0xFF48 => Some(Pallet::OBP0),
+            0xFF49 => Some(Pallet::OBP1),
             _ => None,
         }
     }
+    pub fn read(&self, addr: u16) -> Option<u8> {
+        match GBP::mem_to_pallet(addr)? {
+            Pallet::BGP => Some(self.bgp),
+            Pallet::OBP0 => Some(self.obp0),
+            Pallet::OBP1 => Some(self.obp1),
+        }
+    }
     pub fn write(&mut self, addr: u16, data: u8) -> bool {
-        match addr {
-            0xFF47 => {self.bgp = data; true},
-            0xFF48 => {self.obp0 = data; true},
-            0xFF49 => {self.obp1 = data; true},
-            _ => false,
+        match GBP::mem_to_pallet(addr) {
+            Some(Pallet::BGP) => {self.bgp = data; true},
+            Some(Pallet::OBP0) => {self.obp0 = data; true},
+            Some(Pallet::OBP1) => {self.obp1 = data; true},
+            None => false,
         }
     }
 
