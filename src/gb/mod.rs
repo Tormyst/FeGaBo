@@ -2,8 +2,11 @@ use std::sync::mpsc;
 use std::thread;
 use std::sync::{Mutex, Arc};
 use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
+use std::path::Path;
 
 const GAMEBOY_SCREEN_BUFFER_SIZE: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
+const DMG_ROM: &'static str = "assets/rom/dmg_rom.gb";
+const ROM_FILE: &'static str = "assets/tetris.gb";
 
 mod cpu;
 mod mem;
@@ -51,16 +54,26 @@ impl Gb {
            -> Option<Gb> {
         match kind {
             GbKind::GB => {
-                Some(Gb {
-                         cpu: cpu::Cpu::new(),
-                         mem: mem::Mem::new_gb(
-                             mem::GbMapper::new_with_boot_rom(
-                                 "assets/rom/dmg_rom.gb".to_string(),
-                                 "assets/tetris.gb".to_string())),
-                         to_main,
-                         from_main,
-                         front_buffer,
-                     })
+                if Path::new(DMG_ROM).is_file() {
+                    Some(Gb {
+                            cpu: cpu::Cpu::new(),
+                            mem: mem::Mem::new_gb(
+                                mem::GbMapper::new_with_boot_rom(DMG_ROM.to_string(),
+                                ROM_FILE.to_string())),
+                            to_main,
+                            from_main,
+                            front_buffer,
+                        })
+                }
+                else {
+                    Some(Gb {
+                            cpu: cpu::Cpu::new_after_boot(),
+                            mem: mem::Mem::new_gb(mem::GbMapper::new(ROM_FILE.to_string())),
+                            to_main,
+                            from_main,
+                            front_buffer,
+                        })
+                }
             }
             _ => None,
         }

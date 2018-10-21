@@ -18,7 +18,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Cpu {
+    pub fn new() -> Self {
         Cpu {
             a: 0,
             b: 0,
@@ -32,6 +32,17 @@ impl Cpu {
             pc: 0,
             print: false,
         }
+    }
+
+    pub fn new_after_boot() -> Self {
+        let mut cpu = Cpu::new();
+        cpu.write_16(WordR::AF, 0x01B0);
+        cpu.write_16(WordR::BC, 0x0013);
+        cpu.write_16(WordR::DE, 0x00D8);
+        cpu.write_16(WordR::HL, 0x014D);
+        cpu.sp = 0xFFFE;
+        cpu.pc = 0x0100;
+        cpu
     }
 
     fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem) {
@@ -181,7 +192,7 @@ impl Cpu {
                      self.pc, instruction, opcode);
         }
         // Change as debugging needed.
-        else if self.pc == 0x0000 { self.print = true; }
+        else if self.pc == 0x0100 { self.print = true; }
 
         //Increment PC
         self.pc += op_size;
@@ -416,6 +427,7 @@ impl Cpu {
         self.set_flag(Flag::H, false);
         self.write_8(reg, valout, mem);
     }
+
     fn rlc(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         let regval = self.read_8(reg.clone(), mem).rotate_left(1);
 
@@ -425,6 +437,7 @@ impl Cpu {
         self.set_flag(Flag::H, false);
         self.write_8(reg, regval, mem);
     }
+
     fn rr(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         // setup
         let regval = self.read_8(reg.clone(), mem);
@@ -440,6 +453,7 @@ impl Cpu {
         self.set_flag(Flag::H, false);
         self.write_8(reg, valout, mem);
     }
+
     fn rrc(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         let regval = self.read_8(reg.clone(), mem).rotate_right(1);
 

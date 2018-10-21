@@ -109,7 +109,7 @@ pub struct GbMapper {
 
 impl GbMapper {
     pub fn new(cartrage: String) -> Self {
-        GbMapper {
+        let mut mapper = GbMapper {
             cartrage: cm::new(cartrage),
             boot_rom: BootRom::new(vec![]),
             vram: [0; KB_8],
@@ -121,7 +121,33 @@ impl GbMapper {
             interupt_flag: 0,
             ppu: ppu::PPU::new(),
             gbp: gbp::GBP::new(),
-        }
+        };
+        mapper.write(0xFF10, 0x80);
+        mapper.write(0xFF11, 0xBF);
+        mapper.write(0xFF12, 0xF3);
+        mapper.write(0xFF14, 0xBF);
+        mapper.write(0xFF16, 0x3F);
+        mapper.write(0xFF17, 0x00);
+        mapper.write(0xFF19, 0xBF);
+        mapper.write(0xFF1A, 0x7F);
+        mapper.write(0xFF1B, 0xFF);
+        mapper.write(0xFF1C, 0x9F);
+        mapper.write(0xFF1E, 0xBF);
+        mapper.write(0xFF20, 0xFF);
+        mapper.write(0xFF21, 0x00);
+        mapper.write(0xFF22, 0x00);
+        mapper.write(0xFF23, 0xBF);
+        mapper.write(0xFF24, 0x77);
+        mapper.write(0xFF25, 0xF3);
+        mapper.write(0xFF26, 0xF1);
+        mapper.write(0xFF40, 0x91);
+        mapper.write(0xFF42, 0x00);
+        mapper.write(0xFF43, 0x00);
+        mapper.write(0xFF45, 0x00);
+        mapper.write(0xFF47, 0xFC);
+        mapper.write(0xFF48, 0xFF);
+        mapper.write(0xFF49, 0xFF);
+        mapper
     }
 
     pub fn new_with_boot_rom(boot_rom: String, cartrage: String) -> Self {
@@ -161,6 +187,10 @@ impl MemMapper for GbMapper {
             0xFE00...0xFE9F => self.oam.read(addr),
             // 0xFEA0...0xFEFF Not Used by anything.
             // 0xFF00 Joypad
+            // FF04 DIV reg
+            // FF05 TIMA reg
+            // FF06 TMA reg
+            // FF07 TAC reg
             0xFF0F => Some(self.interupt_flag),
             0xFF10...0xFF3F => Some(0xFF), // Audio device not implemented.
             0xFF40...0xFF45 => self.ppu.read(addr), // PPU state
@@ -182,6 +212,10 @@ impl MemMapper for GbMapper {
             0xFE00...0xFE9F => self.oam.write(addr, data),
             // 0xFEA0...0xFEFF Not Usable.  Tetris write here.
             // 0xFF00 => false, Joypad
+            // FF04 DIV reg
+            // FF05 TIMA reg
+            // FF06 TMA reg
+            // FF07 TAC reg
             0xFF01...0xFF02 => true, // Not implemented serial
             0xFF0F => {self.interupt_flag = data; true}
             0xFF10...0xFF3F => true, // Audio device not implemented.
