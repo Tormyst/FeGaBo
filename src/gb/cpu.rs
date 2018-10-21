@@ -59,8 +59,7 @@ impl Cpu {
             CCF => self.set_flag(Flag::C, false),
 
             RST(op) => {
-                let pc = self.pc;
-                self.push(pc, mem);
+                self.push(WordR::PC, mem);
                 self.pc = op;
             }
 
@@ -71,10 +70,7 @@ impl Cpu {
             }
             CALL(fl, o) => self.call(fl, o, mem),
 
-            PUSH(o) => {
-                let data = self.read_16(o);
-                self.push(data, mem)
-            }
+            PUSH(o) => self.push(o, mem),
             POP(o) => {
                 let data = self.pop(mem);
                 self.write_16(o, data);
@@ -303,15 +299,15 @@ impl Cpu {
 
     fn call(&mut self, fl: decode::OptFlag, reg: WordR, mem: &mut mem::Mem) {
         if self.flag_condition(fl) {
-            let data = self.pc;
-            self.push(data, mem);
+            self.push(WordR::PC, mem);
             self.pc = self.read_16(reg);
         }
     }
 
-    fn push(&mut self, reg: u16, mem: &mut mem::Mem) {
+    fn push(&mut self, reg: WordR, mem: &mut mem::Mem) {
+        let data = self.read_16(reg);
         self.sp -= 2;
-        mem.write_16(self.sp, reg);
+        mem.write_16(self.sp, data);
     }
 
     fn pop(&mut self, mem: &mut mem::Mem) -> u16 {
