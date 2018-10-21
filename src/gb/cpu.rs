@@ -15,6 +15,14 @@ pub struct Cpu {
     sp: u16,
     pc: u16,
     print: bool,
+    state: CPUState,
+}
+
+#[derive(Debug)]
+enum CPUState {
+    Running,
+    Halt,
+    Stop,
 }
 
 impl Cpu {
@@ -31,6 +39,7 @@ impl Cpu {
             sp: 0,
             pc: 0,
             print: false,
+            state: CPUState::Running,
         }
     }
 
@@ -49,6 +58,8 @@ impl Cpu {
         use gb::decode::Op::*;
         match opcode {
             NOP => {}
+            HALT => self.state = CPUState::Halt,
+            STOP => self.state = CPUState::Stop,
 
             CPL => {
                 self.a = !self.a;
@@ -179,6 +190,14 @@ impl Cpu {
     }
 
     pub fn cycle(&mut self, mem: &mut mem::Mem) -> usize{
+        match self.state {
+            CPUState::Running => self.cycle_running(mem),
+            CPUState::Stop => 4,
+            CPUState::Halt => 4,
+        }
+    }
+
+    pub fn cycle_running(&mut self, mem: &mut mem::Mem) -> usize{
         // Load opcode
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
         // let mut flag = false;
@@ -195,7 +214,6 @@ impl Cpu {
 
         // Execute
         self.execute_op(opcode, mem);
-
 
         op_time
     }
