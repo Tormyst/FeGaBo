@@ -14,8 +14,8 @@ mod decode;
 
 enum GbKind {
     GB,
-    SGB,
-    GBC,
+    // SGB,
+    // GBC,
 }
 
 pub struct GbConnect {
@@ -75,7 +75,7 @@ impl Gb {
                         })
                 }
             }
-            _ => None,
+            // _ => None,
         }
     }
 
