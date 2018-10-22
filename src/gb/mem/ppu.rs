@@ -98,25 +98,28 @@ impl PPU {
     }
 
     pub fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
-        self.lx += time;
-        if self.lx > LINE_CYCLE {
-            let mut ret = vec![];
-            while self.lx > LINE_CYCLE {
-                ret.push(self.ly);
-                self.ly += 1;
-                self.lx -= 456;
-
-                if self.ly > LYMAX {
-                    self.ly -= LYMAX;
-                    ret.push(0);
-                }
-            }
-            self.set_state();
-            Some(ret)
-        }
+        if !self.lcdc_get(7) { None }
         else {
-            self.set_state();
-            None
+            self.lx += time;
+            if self.lx > LINE_CYCLE {
+                let mut ret = vec![];
+                while self.lx > LINE_CYCLE {
+                    ret.push(self.ly);
+                    self.ly += 1;
+                    self.lx -= 456;
+
+                    if self.ly > LYMAX {
+                        self.ly -= LYMAX;
+                        ret.push(0);
+                    }
+                }
+                self.set_state();
+                Some(ret)
+            }
+            else {
+                self.set_state();
+                None
+            }
         }
     }
 
