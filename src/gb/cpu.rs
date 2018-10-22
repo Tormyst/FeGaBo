@@ -189,25 +189,31 @@ impl Cpu {
         }
     }
 
-    pub fn cycle(&mut self, mem: &mut mem::Mem) -> usize{
+    pub fn cycle(&mut self, mem: &mut mem::Mem) -> usize {
         match self.state {
             CPUState::Running => self.cycle_running(mem),
-            CPUState::Stop => 4,
+            CPUState::Stop => {
+                if mem.load_8(0xFF00) & 0x0F > 0 {
+                    self.state = CPUState::Running;
+                };
+                4
+            }
             CPUState::Halt => 4,
         }
     }
 
-    pub fn cycle_running(&mut self, mem: &mut mem::Mem) -> usize{
+    pub fn cycle_running(&mut self, mem: &mut mem::Mem) -> usize {
         // Load opcode
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
         // let mut flag = false;
         if self.print {
             // println!("CPU: {:0X?}", self);
-            println!("Executing 0x{:04X}: {}    {}",
-                     self.pc, instruction, opcode);
+            println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
         }
         // Change as debugging needed.
-        else if self.pc == 0x0100 { self.print = true; }
+        else if self.pc == 0x0100 {
+            self.print = true;
+        }
 
         //Increment PC
         self.pc += op_size;
@@ -430,10 +436,11 @@ impl Cpu {
 
         // rotate
         self.set_flag(Flag::C, regval & 0x80 != 0);
-        let valout = (regval << 1) | match old_c {
-            true => 1,
-            false => 0,
-        };
+        let valout = (regval << 1) |
+                     match old_c {
+                         true => 1,
+                         false => 0,
+                     };
 
         // output
         self.set_flag(Flag::Z, valout == 0);

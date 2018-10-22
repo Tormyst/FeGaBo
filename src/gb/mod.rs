@@ -91,18 +91,26 @@ impl Gb {
         println!("Everything is set up!!!!");
         'cycle_loop: loop {
             let time = self.cpu.cycle(&mut self.mem);
-            if let Some(rows) = self.mem.time_passes(time) {
-                for r in rows {
-                    if self.mem.render(r as usize) {
-                        // Send frame by swapping buffers and telling main to do something.
-                        self.mem.screen_swap(&mut self.front_buffer.lock().unwrap());
-                        self.to_main.send(Output::Frame).unwrap();
-                        // This should be updated button info.
-                        match self.from_main.recv() {
-                            Ok(super::Input::Buttons(buttons)) => self.mem.update_input(buttons),
-                            Err(_) => break 'cycle_loop,
-                            _ => panic!("Unknown message from main"),
-                        }
+            self.time_passes(time); 
+            if let Some(interupt) = self.mem.check_interupt() {
+                // self.cpu.handle_interupt(interupt);
+                self.time_passes(16); 
+            }
+        }
+    }
+
+    fn time_passes(&mut self, time: usize) {
+        if let Some(rows) = self.mem.time_passes(time) {
+            for r in rows {
+                if self.mem.render(r as usize) {
+                    // Send frame by swapping buffers and telling main to do something.
+                    self.mem.screen_swap(&mut self.front_buffer.lock().unwrap());
+                    self.to_main.send(Output::Frame).unwrap();
+                    // This should be updated button info.
+                    match self.from_main.recv() {
+                        Ok(super::Input::Buttons(buttons)) => self.mem.update_input(buttons),
+                        // Err(_) => break 'cycle_loop,
+                        _ => panic!("Unknown message from main"),
                     }
                 }
             }

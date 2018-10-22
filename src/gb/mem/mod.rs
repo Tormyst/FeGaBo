@@ -398,6 +398,10 @@ impl Mem {
         self.ime = value;
     }
 
+    pub fn check_interupt(&mut self) -> Option<usize> {
+        None
+    }
+
     pub fn update_input(&mut self, buttons: Buttons) {
         self.map_holder.update_input(buttons)
     }
