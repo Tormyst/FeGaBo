@@ -14,6 +14,8 @@ const GAMEBOY_HEIGHT: u32 = 144;
 const RESOLUTION_MULTEPLYER: u32 = 4;
 
 mod gb;
+use gb::Output;
+use gb::Input;
 
 enum TextureType {
     Screen,
@@ -72,19 +74,43 @@ impl Window {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         let mut fps = 0;
         let mut start_time = SystemTime::now();
+        let mut a = false;
+        let mut b = false;
+        let mut start = false;
+        let mut select = false;
+        let mut up = false;
+        let mut down = false;
+        let mut left = false;
+        let mut right = false;
         'running: loop {
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit { .. } |
                     Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
+                    Event::KeyDown { keycode: Some(Keycode::C), .. } => a = true,
+                    Event::KeyDown { keycode: Some(Keycode::X), .. } => b = true,
+                    Event::KeyDown { keycode: Some(Keycode::B), .. } => start = true,
+                    Event::KeyDown { keycode: Some(Keycode::V), .. } => select = true,
+                    Event::KeyDown { keycode: Some(Keycode::Up), .. } => up = true,
+                    Event::KeyDown { keycode: Some(Keycode::Down), .. } => down = true,
+                    Event::KeyDown { keycode: Some(Keycode::Left), .. } => left = true,
+                    Event::KeyDown { keycode: Some(Keycode::Right), .. } => right = true,
+
+                    Event::KeyUp { keycode: Some(Keycode::C), .. } => a = false,
+                    Event::KeyUp { keycode: Some(Keycode::X), .. } => b = false,
+                    Event::KeyUp { keycode: Some(Keycode::B), .. } => start = false,
+                    Event::KeyUp { keycode: Some(Keycode::V), .. } => select = false,
+                    Event::KeyUp { keycode: Some(Keycode::Up), .. } => up = false,
+                    Event::KeyUp { keycode: Some(Keycode::Down), .. } => down = false,
+                    Event::KeyUp { keycode: Some(Keycode::Left), .. } => left = false,
+                    Event::KeyUp { keycode: Some(Keycode::Right), .. } => right = false,
                     _ => {}
                 }
             }
             use std::sync::mpsc::TryRecvError;
 
             match gbconnect.from_gb.try_recv() {
-                Ok(event) => {
-                    eprintln!("Dummy event {} in main", event);
+                Ok(Output::Frame) => {
                     for texture in &mut live_textures {
                         match texture.0 {
                             TextureType::Screen => {
@@ -101,8 +127,17 @@ impl Window {
                     }
                     self.canvas.present();
                     fps += 1;
-                    
-                    gbconnect.to_gb.send(0).unwrap();}
+
+                    gbconnect.to_gb.send(Input::Buttons(gb::mem::Buttons {
+                        a,
+                        b,
+                        select,
+                        start,
+                        up,
+                        down,
+                        left,
+                        right,
+                    })).unwrap();}
                 Err(err) => {
                     match err {
                         TryRecvError::Disconnected => {

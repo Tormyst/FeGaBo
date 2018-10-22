@@ -9,7 +9,7 @@ const DMG_ROM: &'static str = "assets/rom/dmg_rom.gb";
 const ROM_FILE: &'static str = "assets/tetris.gb";
 
 mod cpu;
-mod mem;
+pub mod mem;
 mod decode;
 
 enum GbKind {
@@ -18,17 +18,25 @@ enum GbKind {
     // GBC,
 }
 
+pub enum Input {
+    Buttons(mem::Buttons),
+}
+
+pub enum Output {
+    Frame,
+}
+
 pub struct GbConnect {
-    pub to_gb: mpsc::Sender<usize>,
-    pub from_gb: mpsc::Receiver<usize>,
+    pub to_gb: mpsc::Sender<Input>,
+    pub from_gb: mpsc::Receiver<Output>,
     pub canvas: Arc<Mutex<Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>>>,
 }
 
 struct Gb {
     cpu: cpu::Cpu,
     mem: mem::Mem,
-    to_main: mpsc::Sender<usize>,
-    from_main: mpsc::Receiver<usize>,
+    to_main: mpsc::Sender<Output>,
+    from_main: mpsc::Receiver<Input>,
     front_buffer: Arc<Mutex<Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>>>,
 }
 
@@ -39,8 +47,8 @@ pub fn connect() -> GbConnect {
             Box::new([0; GAMEBOY_SCREEN_BUFFER_SIZE as usize])));
 
     let front_buffer = Arc::clone(&canvas);
-    thread::Builder::new().name("GB".to_string()).spawn(move || { 
-        Gb::new(GbKind::GB, to_main, from_main, front_buffer).unwrap().cycle(); 
+    thread::Builder::new().name("GB".to_string()).spawn(move || {
+        Gb::new(GbKind::GB, to_main, from_main, front_buffer).unwrap().cycle();
     }).unwrap();
 
     GbConnect { to_gb, from_gb, canvas }
@@ -48,8 +56,8 @@ pub fn connect() -> GbConnect {
 
 impl Gb {
     fn new(kind: GbKind,
-           to_main: mpsc::Sender<usize>,
-           from_main: mpsc::Receiver<usize>,
+           to_main: mpsc::Sender<Output>,
+           from_main: mpsc::Receiver<Input>,
            front_buffer: Arc<Mutex<Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>>>)
            -> Option<Gb> {
         match kind {
@@ -81,16 +89,20 @@ impl Gb {
 
     fn cycle(mut self) {
         println!("Everything is set up!!!!");
-        loop {
+        'cycle_loop: loop {
             let time = self.cpu.cycle(&mut self.mem);
             if let Some(rows) = self.mem.time_passes(time) {
                 for r in rows {
                     if self.mem.render(r as usize) {
                         // Send frame by swapping buffers and telling main to do something.
                         self.mem.screen_swap(&mut self.front_buffer.lock().unwrap());
-                        self.to_main.send(0).unwrap();
+                        self.to_main.send(Output::Frame).unwrap();
                         // This should be updated button info.
-                        let _val = self.from_main.recv().unwrap(); 
+                        match self.from_main.recv() {
+                            Ok(super::Input::Buttons(buttons)) => self.mem.update_input(buttons),
+                            Err(_) => break 'cycle_loop,
+                            _ => panic!("Unknown message from main"),
+                        }
                     }
                 }
             }

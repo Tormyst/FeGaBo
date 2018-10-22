@@ -10,10 +10,42 @@ mod cm;
 const KB_8: usize = 0x2000;
 const GAMEBOY_SCREEN_BUFFER_SIZE: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
 
+pub struct Buttons {
+    pub a: bool,
+    pub b: bool,
+    pub start: bool,
+    pub select: bool,
+    pub up: bool,
+    pub down: bool,
+    pub right: bool,
+    pub left: bool,
+}
+
+impl Buttons {
+    pub fn buttons(&self) -> u8 {
+        let mut res = 0;
+        if self.start { res |= 0x8; }
+        if self.select { res |= 0x4; }
+        if self.b { res |= 0x2; }
+        if self.a { res |= 0x1; }
+        res
+    }
+
+    pub fn dpad(&self) -> u8 {
+        let mut res = 0;
+        if self.down { res |= 0x8; }
+        if self.up { res |= 0x4; }
+        if self.left { res |= 0x2; }
+        if self.right { res |= 0x1; }
+        res
+    }
+}
+
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
     fn write(&mut self, addr: u16, data: u8) -> bool;
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
+    fn update_input(&mut self, buttons: Buttons);
     fn render(&self, row: u8, buffer: &mut [u8]);
     fn print_background_map(&self);
     fn print_sprite_table(&self);
@@ -100,6 +132,8 @@ pub struct GbMapper {
     wram: [u8; KB_8],
     boot: bool,
     oam: Oam,
+    buttons: Buttons,
+    joypad: u8,
     hram: [u8; 127],
     interupt_enable: u8,
     interupt_flag: u8,
@@ -116,6 +150,8 @@ impl GbMapper {
             wram: [0; KB_8],
             boot: true,
             oam: Oam::new(),
+            buttons: Buttons {a:false,b:false,start:false,select:false,up:false,down:false,left:false,right:false},
+            joypad: 0,
             hram: [0; 127],
             interupt_enable: 0,
             interupt_flag: 0,
@@ -164,6 +200,8 @@ impl GbMapper {
             vram: [0; KB_8],
             wram: [0; KB_8],
             boot: false,
+            buttons: Buttons {a:false,b:false,start:false,select:false,up:false,down:false,left:false,right:false},
+            joypad: 0,
             oam: Oam::new(),
             hram: [0; 127],
             interupt_enable: 0,
@@ -186,7 +224,7 @@ impl MemMapper for GbMapper {
             0xE000...0xFDFF => Some(self.wram[addr as usize & 0x0FFF]),
             0xFE00...0xFE9F => self.oam.read(addr),
             // 0xFEA0...0xFEFF Not Used by anything.
-            // 0xFF00 Joypad
+            0xFF00 => Some(self.joypad), // Joypad
             // FF04 DIV reg
             // FF05 TIMA reg
             // FF06 TMA reg
@@ -211,7 +249,16 @@ impl MemMapper for GbMapper {
             0xE000...0xFDFF => {self.wram[addr as usize & 0x0FFF] = data; true}
             0xFE00...0xFE9F => self.oam.write(addr, data),
             // 0xFEA0...0xFEFF Not Usable.  Tetris write here.
-            // 0xFF00 => false, Joypad
+            0xFF00 => { // Joypad
+                self.joypad = data & 0x30; // Only control bits.
+                if self.joypad & 0x10 > 0 {
+                    self.joypad |= self.buttons.dpad();
+                }
+                if self.joypad & 0x20 > 0 {
+                    self.joypad |= self.buttons.buttons();
+                }
+                true
+            },
             // FF04 DIV reg
             // FF05 TIMA reg
             // FF06 TMA reg
@@ -230,13 +277,18 @@ impl MemMapper for GbMapper {
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
         self.ppu.time_passes(time)
     }
+    fn update_input(&mut self, buttons: Buttons) {
+        self.buttons = buttons;
+        let data = self.read(0xFF00).unwrap();
+        self.write(0xFF00, data);
+    }
     fn render(&self, row: u8, buffer: &mut [u8]) {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy + row;
         for i in 0..GAMEBOY_WIDTH as u8 {
             let buff_offset = i as usize * 3;
-            self.render_background(x_offset.wrapping_add(i), 
-                                  y_offset, 
+            self.render_background(x_offset.wrapping_add(i),
+                                  y_offset,
                                   &mut buffer[buff_offset..buff_offset + 3]);
         }
     }
@@ -244,7 +296,7 @@ impl MemMapper for GbMapper {
     fn print_background_map(&self) {
         let map_offset = match self.ppu.lcdc_get(3) {
             true => 0x9C00,
-            false => 0x9800, 
+            false => 0x9800,
         };
         println!("Using Map: {:0X}", map_offset);
         print!("   ");
@@ -252,9 +304,9 @@ impl MemMapper for GbMapper {
         println!();
         for i in 0..32 {
             print!("{:2X}:",i);
-            (0..32).for_each(move |x| 
-                             print!(" {:2X}", self.read(map_offset 
-                                                       + (i as u16 * 32) 
+            (0..32).for_each(move |x|
+                             print!(" {:2X}", self.read(map_offset
+                                                       + (i as u16 * 32)
                                                        + x
                                                        ).unwrap()
                                     ));
@@ -266,7 +318,7 @@ impl MemMapper for GbMapper {
         for i in 0..384 {
             let addr = (i*16) + 0x8000;
             print!("Tile {:3X} 0x{:04X}:",i, addr);
-            (0..16).for_each(move |x| 
+            (0..16).for_each(move |x|
                              print!(" {:2X}", self.read(addr
                                                        + x
                                                        ).unwrap()
@@ -282,7 +334,7 @@ impl GbMapper {
         // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
         let map_offset = match self.ppu.lcdc_get(3) {
             true => 0x9C00,
-            false => 0x9800, 
+            false => 0x9800,
         };
 
         let x:u16 = x as u16;
@@ -297,7 +349,7 @@ impl GbMapper {
             // This needs to be a signed offset
             false => ((map_data as i16 * 16) as u16 + 0x9000),
         };
-        
+
         // Move to the correct row
         let x_offset = 7 - (x % 8);
         let sprite_location = sprite_base + ((y % 8) * 2);
@@ -319,8 +371,8 @@ impl GbMapper {
 
 impl Mem {
     pub fn new_gb(mapper: GbMapper) -> Self {
-        Mem { 
-            map_holder: Box::new(mapper), 
+        Mem {
+            map_holder: Box::new(mapper),
             screen: Box::new([0; GAMEBOY_SCREEN_BUFFER_SIZE as usize]),
             ime: false,
         }
@@ -345,7 +397,11 @@ impl Mem {
     pub fn set_ime(&mut self, value: bool) {
         self.ime = value;
     }
-    
+
+    pub fn update_input(&mut self, buttons: Buttons) {
+        self.map_holder.update_input(buttons)
+    }
+
     pub fn render(&mut self, row: usize) -> bool{
         if row < 144 {
             // Actually render
