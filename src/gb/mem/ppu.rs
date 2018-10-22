@@ -18,6 +18,7 @@ pub struct PPU {
 
     ly: u8, // 44
     lx: usize, // Hidden value used to tell where we are in the write cycle
+    lx_sent: bool,
     lyc: u8, // 45
 
     wy: u8, //4A
@@ -40,6 +41,7 @@ impl PPU {
             scx: 0,
             ly: 0,
             lx: 0,
+            lx_sent: false,
             lyc: 0,
             wy: 0,
             wx: 0,
@@ -101,17 +103,16 @@ impl PPU {
         if !self.lcdc_get(7) { None }
         else {
             self.lx += time;
-            if self.lx > LINE_CYCLE {
+            if self.lx >= 248 {
                 let mut ret = vec![];
+                if !self.lx_sent { ret.push(self.ly); self.lx_sent = true;}
                 while self.lx > LINE_CYCLE {
-                    ret.push(self.ly);
                     self.ly += 1;
                     self.lx -= 456;
+                    if self.ly > LYMAX { self.ly = 0; }
+                    if self.lx >= 248 { ret.push(self.ly); self.lx_sent = true;}
+                    else { self.lx_sent = false; }
 
-                    if self.ly > LYMAX {
-                        self.ly -= LYMAX;
-                        ret.push(0);
-                    }
                 }
                 self.set_state();
                 Some(ret)
