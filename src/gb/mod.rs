@@ -93,7 +93,7 @@ impl Gb {
             let time = self.cpu.cycle(&mut self.mem);
             self.time_passes(time); 
             if let Some(interupt) = self.mem.check_interupt() {
-                // self.cpu.handle_interupt(interupt);
+                self.cpu.handle_interupt(interupt, &mut self.mem);
                 self.time_passes(16); 
             }
         }

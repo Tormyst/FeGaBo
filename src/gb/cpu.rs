@@ -54,6 +54,12 @@ impl Cpu {
         cpu
     }
 
+    pub fn handle_interupt(&mut self, location: u16, mem: &mut mem::Mem) {
+        self.push(WordR::PC, mem);
+        mem.set_ime(false);
+        self.pc = location;
+    }
+
     fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem) {
         use gb::decode::Op::*;
         match opcode {
@@ -212,7 +218,7 @@ impl Cpu {
         }
         // Change as debugging needed.
         else if self.pc == 0x0100 {
-            self.print = true;
+            //self.print = true;
         }
 
         //Increment PC

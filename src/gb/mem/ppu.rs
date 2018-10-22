@@ -19,6 +19,8 @@ pub struct PPU {
     ly: u8, // 44
     lx: usize, // Hidden value used to tell where we are in the write cycle
     lx_sent: bool,
+    vblank_interupt_buffered: bool,
+    stat_interupt_buffered: bool,
     lyc: u8, // 45
 
     wy: u8, //4A
@@ -42,6 +44,8 @@ impl PPU {
             ly: 0,
             lx: 0,
             lx_sent: false,
+            vblank_interupt_buffered: false,
+            stat_interupt_buffered: false,
             lyc: 0,
             wy: 0,
             wx: 0,
@@ -99,6 +103,10 @@ impl PPU {
         self.lcdc & (0x01 << offset) != 0
     }
 
+    fn stat_get(&self, offset: u8) -> bool {
+        self.stat & (0x01 << offset) != 0
+    }
+
     pub fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
         if !self.lcdc_get(7) { None }
         else {
@@ -110,9 +118,9 @@ impl PPU {
                     self.ly += 1;
                     self.lx -= 456;
                     if self.ly > LYMAX { self.ly = 0; }
+                    self.buffer_interupts();
                     if self.lx >= 248 { ret.push(self.ly); self.lx_sent = true;}
                     else { self.lx_sent = false; }
-
                 }
                 self.set_state();
                 Some(ret)
@@ -124,9 +132,34 @@ impl PPU {
         }
     }
 
+    fn buffer_interupts(&mut self) {
+        if self.ly == 144 { self.vblank_interupt_buffered = true }
+        if self.stat_get(6) {
+            if match self.stat_get(2) {
+                true => self.lyc == self.ly,
+                false => self.lyc != self.ly,
+            }{
+                self.stat_interupt_buffered = true;
+            }
+        }
+    }
+
+    pub fn interupt_update(&mut self) -> u8 {
+        let mut val = 0;
+        if self.vblank_interupt_buffered {
+            self.vblank_interupt_buffered = false;
+            val |= 0x01;
+        }
+        if self.stat_interupt_buffered {
+            self.stat_interupt_buffered = false;
+            val |= 0x02;
+        }
+        val
+    }
+
     fn set_state(&mut self) {
         if self.ly >= 144 {
-            self.stat = self.stat & 0xF8 | 0x01; // Vblank
+            self.stat = (self.stat & 0xF8) | 0x01; // Vblank
         }
         else {
             self.stat = match self.lx {

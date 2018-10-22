@@ -46,6 +46,7 @@ pub trait MemMapper {
     fn write(&mut self, addr: u16, data: u8) -> bool;
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
     fn update_input(&mut self, buttons: Buttons);
+    fn check_interupt(&mut self) -> Option<u16>;    
     fn render(&self, row: u8, buffer: &mut [u8]);
     fn print_background_map(&self);
     fn print_sprite_table(&self);
@@ -282,6 +283,16 @@ impl MemMapper for GbMapper {
         let data = self.read(0xFF00).unwrap();
         self.write(0xFF00, data);
     }
+
+    fn check_interupt(&mut self) -> Option<u16> {
+        self.interupt_flag |= self.ppu.interupt_update();
+        let interupt_triggers = self.interupt_flag & self.interupt_enable;
+        if interupt_triggers == 0 { None }
+        else if interupt_triggers & 0x01 > 0 { Some(0x40) } // v blank
+        else if interupt_triggers & 0x02 > 0 { Some(0x48) } // Stat
+        else { None }
+    }
+
     fn render(&self, row: u8, buffer: &mut [u8]) {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy + row;
@@ -398,8 +409,11 @@ impl Mem {
         self.ime = value;
     }
 
-    pub fn check_interupt(&mut self) -> Option<usize> {
-        None
+    pub fn check_interupt(&mut self) -> Option<u16> {
+        if self.ime {
+            self.map_holder.check_interupt()
+        }
+        else { None }
     }
 
     pub fn update_input(&mut self, buttons: Buttons) {
