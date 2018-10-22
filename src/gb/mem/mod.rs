@@ -211,6 +211,16 @@ impl GbMapper {
             gbp: gbp::GBP::new(),
         }
     }
+
+    fn dma(&mut self, data: u8) -> bool{
+        let start = (data as u16) << 8;
+        for offset in 0..0x9F {
+            let data = self.read(start + offset).unwrap();
+            self.write(0xFE00 + offset, data);
+        }
+        true
+    }
+
 }
 
 impl MemMapper for GbMapper {
@@ -268,6 +278,7 @@ impl MemMapper for GbMapper {
             0xFF0F => {self.interupt_flag = data; true}
             0xFF10...0xFF3F => true, // Audio device not implemented.
             0xFF40...0xFF45 => self.ppu.write(addr, data), // PPU state
+            0xFF46 => self.dma(data),
             0xFF47...0xFF49 => self.gbp.write(addr, data), // Pallet for GB
             0xFF50 => {self.boot = self.boot || (data & 0x01) > 0; true},
             0xFF80...0xFFFE => {self.hram[addr as usize & 0x007F] = data; true}
