@@ -5,6 +5,7 @@ use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
 
 mod ppu;
 mod gbp;
+mod timer;
 mod cm;
 
 const KB_8: usize = 0x2000;
@@ -135,6 +136,7 @@ pub struct GbMapper {
     oam: Oam,
     buttons: Buttons,
     joypad: u8,
+    timer: timer::Timer,
     hram: [u8; 127],
     interupt_enable: u8,
     interupt_flag: u8,
@@ -153,6 +155,7 @@ impl GbMapper {
             oam: Oam::new(),
             buttons: Buttons {a:false,b:false,start:false,select:false,up:false,down:false,left:false,right:false},
             joypad: 0,
+            timer: timer::Timer::new(),
             hram: [0; 127],
             interupt_enable: 0,
             interupt_flag: 0,
@@ -203,6 +206,7 @@ impl GbMapper {
             boot: false,
             buttons: Buttons {a:false,b:false,start:false,select:false,up:false,down:false,left:false,right:false},
             joypad: 0,
+            timer: timer::Timer::new(),
             oam: Oam::new(),
             hram: [0; 127],
             interupt_enable: 0,
@@ -236,10 +240,7 @@ impl MemMapper for GbMapper {
             0xFE00...0xFE9F => self.oam.read(addr),
             // 0xFEA0...0xFEFF Not Used by anything.
             0xFF00 => Some(self.joypad), // Joypad
-            // FF04 DIV reg
-            // FF05 TIMA reg
-            // FF06 TMA reg
-            // FF07 TAC reg
+            0xFF04...0xFF07 => self.timer.read(addr),
             0xFF0F => Some(self.interupt_flag),
             0xFF10...0xFF3F => Some(0xFF), // Audio device not implemented.
             0xFF40...0xFF45 => self.ppu.read(addr), // PPU state
@@ -270,10 +271,7 @@ impl MemMapper for GbMapper {
                 }
                 true
             },
-            // FF04 DIV reg
-            // FF05 TIMA reg
-            // FF06 TMA reg
-            // FF07 TAC reg
+            0xFF04...0xFF07 => self.timer.write(addr, data),
             0xFF01...0xFF02 => true, // Not implemented serial
             0xFF0F => {self.interupt_flag = data; true}
             0xFF10...0xFF3F => true, // Audio device not implemented.
@@ -287,6 +285,7 @@ impl MemMapper for GbMapper {
         }
     }
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
+        self.timer.tick(time);
         self.ppu.time_passes(time)
     }
     fn update_input(&mut self, buttons: Buttons) {
@@ -297,10 +296,12 @@ impl MemMapper for GbMapper {
 
     fn check_interupt(&mut self) -> Option<u16> {
         self.interupt_flag |= self.ppu.interupt_update();
+        self.interupt_flag |= self.timer.check_interupt();
         let interupt_triggers = self.interupt_flag & self.interupt_enable;
         if interupt_triggers == 0 { None }
         else if interupt_triggers & 0x01 > 0 { Some(0x40) } // v blank
         else if interupt_triggers & 0x02 > 0 { Some(0x48) } // Stat
+        else if interupt_triggers & 0x04 > 0 { Some(0x50) } // Stat
         else { None }
     }
 
@@ -407,7 +408,6 @@ impl Mem {
             None => {
                 panic!("Memory read failed for address: {:04X}.",
                          addr);
-                0xFF
             }
         }
     }
