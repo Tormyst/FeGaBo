@@ -306,7 +306,7 @@ impl MemMapper for GbMapper {
 
     fn render(&self, row: u8, buffer: &mut [u8]) {
         let x_offset = self.ppu.scx;
-        let y_offset = self.ppu.scy + row;
+        let y_offset = self.ppu.scy.wrapping_add(row);
         for i in 0..GAMEBOY_WIDTH as u8 {
             let buff_offset = i as usize * 3;
             self.render_background(x_offset.wrapping_add(i),
@@ -405,7 +405,7 @@ impl Mem {
         match self.map_holder.read(addr) {
             Some(data) => data,
             None => {
-                eprintln!("Memory read failed for address: {:04X}.",
+                panic!("Memory read failed for address: {:04X}.",
                          addr);
                 0xFF
             }
@@ -457,7 +457,7 @@ impl Mem {
     pub fn write_8(&mut self, addr: u16, data: u8) {
         // Look value up in memory map
         if !self.map_holder.write(addr, data) {
-            eprintln!("Memory write failed for address: {:04X}", addr)
+            panic!("Memory write failed for address: {:04X}", addr)
         }
     }
 

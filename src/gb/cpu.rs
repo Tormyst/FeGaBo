@@ -218,7 +218,7 @@ impl Cpu {
         }
         // Change as debugging needed.
         else if self.pc == 0x0100 {
-            //self.print = true;
+            self.print = true;
         }
 
         //Increment PC
@@ -263,6 +263,7 @@ impl Cpu {
     fn read_16(&mut self, reg: WordR) -> u16 {
         match reg {
             WordR::SP => self.sp,
+            WordR::SPP(offset) => self.sp.wrapping_add(offset as u16),
             WordR::PC => self.pc,
             WordR::IMM(data) => data,
             WordR::HighC => 0xFF00 | (self.c as u16),
@@ -336,13 +337,13 @@ impl Cpu {
 
     fn push(&mut self, reg: WordR, mem: &mut mem::Mem) {
         let data = self.read_16(reg);
-        self.sp -= 2;
+        self.sp = self.sp.wrapping_sub(2);
         mem.write_16(self.sp, data);
     }
 
     fn pop(&mut self, mem: &mut mem::Mem) -> u16 {
         let data = mem.load_16(self.sp);
-        self.sp += 2;
+        self.sp = self.sp.wrapping_add(2);
         data
     }
 
