@@ -414,9 +414,10 @@ impl Cpu {
             }
         };
 
-        let (data, cout) = self.a.overflowing_sub(reg + cin);
+        let data = self.a.wrapping_sub(reg + cin);
         let h = (data & 0x0F) < ((reg & 0x0F) + cin);
         let zero = data == 0;
+        let cout = self.a < reg;
         self.set_flag(Flag::Z, zero);
         self.set_flag(Flag::N, true);
         self.set_flag(Flag::H, h);

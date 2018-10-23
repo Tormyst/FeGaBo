@@ -406,8 +406,9 @@ impl Mem {
         match self.map_holder.read(addr) {
             Some(data) => data,
             None => {
-                panic!("Memory read failed for address: {:04X}.",
+                println!("Memory read failed for address: {:04X}.",
                          addr);
+                0xFF
             }
         }
     }
@@ -457,14 +458,14 @@ impl Mem {
     pub fn write_8(&mut self, addr: u16, data: u8) {
         // Look value up in memory map
         if !self.map_holder.write(addr, data) {
-            panic!("Memory write failed for address: {:04X}", addr)
+            println!("Memory write failed for address: {:04X}", addr)
         }
     }
 
     pub fn write_16(&mut self, addr: u16, data: u16) {
         // Look value up in memory map
         self.write_8(addr, data as u8);
-        self.write_8(addr + 1, (data >> 8) as u8);
+        self.write_8(addr.wrapping_add(1), (data >> 8) as u8);
     }
 
     pub fn load_16(&self, addr: u16) -> u16 {
