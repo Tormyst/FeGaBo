@@ -2,11 +2,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::sync::{Mutex, Arc};
 use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
-use std::path::Path;
 
 const GAMEBOY_SCREEN_BUFFER_SIZE: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
-const DMG_ROM: &'static str = "assets/rom/dmg_rom.gb";
-const ROM_FILE: &'static str = "assets/rom.gb";
 
 mod cpu;
 pub mod mem;
