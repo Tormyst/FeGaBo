@@ -1,4 +1,6 @@
 extern crate sdl2;
+#[macro_use]
+extern crate clap;
 
 use std::time::{SystemTime, Duration};
 
@@ -60,11 +62,11 @@ impl Window {
     }
 
     fn create_screen_internal<'a>(texture_creator: &'a TextureCreator<WindowContext>)
-                                  -> Texture<'a> {
-        texture_creator
-            .create_texture_streaming(PixelFormatEnum::RGB24, GAMEBOY_WIDTH, GAMEBOY_HEIGHT)
-            .unwrap()
-    }
+        -> Texture<'a> {
+            texture_creator
+                .create_texture_streaming(PixelFormatEnum::RGB24, GAMEBOY_WIDTH, GAMEBOY_HEIGHT)
+                .unwrap()
+        }
 
     fn event_loop(mut self, gbconnect: gb::GbConnect) {
         let mut live_textures = Vec::new();
@@ -86,25 +88,25 @@ impl Window {
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit { .. } |
-                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
-                    Event::KeyDown { keycode: Some(Keycode::C), .. } => a = true,
-                    Event::KeyDown { keycode: Some(Keycode::X), .. } => b = true,
-                    Event::KeyDown { keycode: Some(Keycode::B), .. } => start = true,
-                    Event::KeyDown { keycode: Some(Keycode::V), .. } => select = true,
-                    Event::KeyDown { keycode: Some(Keycode::Up), .. } => up = true,
-                    Event::KeyDown { keycode: Some(Keycode::Down), .. } => down = true,
-                    Event::KeyDown { keycode: Some(Keycode::Left), .. } => left = true,
-                    Event::KeyDown { keycode: Some(Keycode::Right), .. } => right = true,
+                        Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
+                        Event::KeyDown { keycode: Some(Keycode::C), .. } => a = true,
+                        Event::KeyDown { keycode: Some(Keycode::X), .. } => b = true,
+                        Event::KeyDown { keycode: Some(Keycode::B), .. } => start = true,
+                        Event::KeyDown { keycode: Some(Keycode::V), .. } => select = true,
+                        Event::KeyDown { keycode: Some(Keycode::Up), .. } => up = true,
+                        Event::KeyDown { keycode: Some(Keycode::Down), .. } => down = true,
+                        Event::KeyDown { keycode: Some(Keycode::Left), .. } => left = true,
+                        Event::KeyDown { keycode: Some(Keycode::Right), .. } => right = true,
 
-                    Event::KeyUp { keycode: Some(Keycode::C), .. } => a = false,
-                    Event::KeyUp { keycode: Some(Keycode::X), .. } => b = false,
-                    Event::KeyUp { keycode: Some(Keycode::B), .. } => start = false,
-                    Event::KeyUp { keycode: Some(Keycode::V), .. } => select = false,
-                    Event::KeyUp { keycode: Some(Keycode::Up), .. } => up = false,
-                    Event::KeyUp { keycode: Some(Keycode::Down), .. } => down = false,
-                    Event::KeyUp { keycode: Some(Keycode::Left), .. } => left = false,
-                    Event::KeyUp { keycode: Some(Keycode::Right), .. } => right = false,
-                    _ => {}
+                        Event::KeyUp { keycode: Some(Keycode::C), .. } => a = false,
+                        Event::KeyUp { keycode: Some(Keycode::X), .. } => b = false,
+                        Event::KeyUp { keycode: Some(Keycode::B), .. } => start = false,
+                        Event::KeyUp { keycode: Some(Keycode::V), .. } => select = false,
+                        Event::KeyUp { keycode: Some(Keycode::Up), .. } => up = false,
+                        Event::KeyUp { keycode: Some(Keycode::Down), .. } => down = false,
+                        Event::KeyUp { keycode: Some(Keycode::Left), .. } => left = false,
+                        Event::KeyUp { keycode: Some(Keycode::Right), .. } => right = false,
+                        _ => {}
                 }
             }
             use std::sync::mpsc::TryRecvError;
@@ -120,7 +122,7 @@ impl Window {
                                         let frame = gbconnect.canvas.lock().unwrap();
                                         buffer.copy_from_slice(&**frame);
                                     })
-                                    .unwrap();
+                                .unwrap();
                             }
                         }
                         self.canvas.copy(&texture.1, None, None).unwrap();
@@ -138,14 +140,14 @@ impl Window {
                         left,
                         right,
                     })).unwrap();}
-                Err(err) => {
-                    match err {
-                        TryRecvError::Disconnected => {
-                            panic!("CPU halted unexpectedly.");
-                        }
-                        _ => {}
-                    };
-                }
+                    Err(err) => {
+                        match err {
+                            TryRecvError::Disconnected => {
+                                panic!("CPU halted unexpectedly.");
+                            }
+                            _ => {}
+                        };
+                    }
             }
 
             if SystemTime::now().duration_since(start_time).unwrap() > Duration::from_secs(1) {
@@ -157,11 +159,28 @@ impl Window {
     }
 }
 
+fn read_arguments() -> (String, std::option::Option<String>){
+    let app = clap_app!(FeGaBo =>
+        (version: "0.1")
+        (author: "Raphael BN")
+        (about: "A gameboy emulator writen in rust")
+        (@arg ROM: +required "Sets the file to use as a gameboy cartrage")
+        (@arg BOOTROM: "Sets the file to use as the bootrom")
+        (@arg debug: -d ... "Sets the level of debugging information")
+    ).get_matches();
+
+    (String::from(app.value_of("ROM").unwrap()), match app.value_of("BOOTROM"){
+        Some(bootrom) => Some(String::from(bootrom)),
+        _ => None,
+    })
+}
 
 pub fn main() {
+    let roms = read_arguments();
+
     let window = Window::new();
 
-    let gbconnect = gb::connect();
+    let gbconnect = gb::connect(roms);
 
     window.event_loop(gbconnect);
 }

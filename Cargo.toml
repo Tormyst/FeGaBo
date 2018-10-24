@@ -5,3 +5,4 @@ authors = ["Tormyst <tormyst@github.com>"]
 
 [dependencies]
 sdl2 = "*"
+clap = "2.32.0"

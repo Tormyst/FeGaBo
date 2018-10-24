@@ -6,7 +6,7 @@ use std::path::Path;
 
 const GAMEBOY_SCREEN_BUFFER_SIZE: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
 const DMG_ROM: &'static str = "assets/rom/dmg_rom.gb";
-const ROM_FILE: &'static str = "assets/tetris.gb";
+const ROM_FILE: &'static str = "assets/rom.gb";
 
 mod cpu;
 pub mod mem;
@@ -40,7 +40,7 @@ struct Gb {
     front_buffer: Arc<Mutex<Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>>>,
 }
 
-pub fn connect() -> GbConnect {
+pub fn connect(roms: (String, Option<String>)) -> GbConnect {
     let (to_gb, from_main) = mpsc::channel();
     let (to_main, from_gb) = mpsc::channel();
     let canvas = Arc::new(Mutex::new(
@@ -48,7 +48,7 @@ pub fn connect() -> GbConnect {
 
     let front_buffer = Arc::clone(&canvas);
     thread::Builder::new().name("GB".to_string()).spawn(move || {
-        Gb::new(GbKind::GB, to_main, from_main, front_buffer).unwrap().cycle();
+        Gb::new(GbKind::GB, roms, to_main, from_main, front_buffer).unwrap().cycle();
     }).unwrap();
 
     GbConnect { to_gb, from_gb, canvas }
@@ -56,27 +56,26 @@ pub fn connect() -> GbConnect {
 
 impl Gb {
     fn new(kind: GbKind,
+           roms: (String, Option<String>),
            to_main: mpsc::Sender<Output>,
            from_main: mpsc::Receiver<Input>,
            front_buffer: Arc<Mutex<Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>>>)
            -> Option<Gb> {
         match kind {
             GbKind::GB => {
-                if Path::new(DMG_ROM).is_file() {
-                    Some(Gb {
+                match &roms.1 { 
+                    Some(bootrom) => Some(Gb {
                             cpu: cpu::Cpu::new(),
                             mem: mem::Mem::new_gb(
-                                mem::GbMapper::new_with_boot_rom(DMG_ROM.to_string(),
-                                ROM_FILE.to_string())),
+                                mem::GbMapper::new_with_boot_rom(bootrom.to_string(), 
+                                                                 roms.0)),
                             to_main,
                             from_main,
                             front_buffer,
-                        })
-                }
-                else {
-                    Some(Gb {
+                        }),
+                    None => Some(Gb {
                             cpu: cpu::Cpu::new_after_boot(),
-                            mem: mem::Mem::new_gb(mem::GbMapper::new(ROM_FILE.to_string())),
+                            mem: mem::Mem::new_gb(mem::GbMapper::new(roms.0)),
                             to_main,
                             from_main,
                             front_buffer,
