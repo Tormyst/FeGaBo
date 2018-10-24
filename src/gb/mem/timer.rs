@@ -50,7 +50,7 @@ impl Timer {
                 self.subdiv -= 64;
                 self.div = self.div.wrapping_add(1);
             };
-            let threshold = 64 * match self.tac & 0x03 {
+            let threshold = 16 * match self.tac & 0x03 {
                 0 => 64,
                 1 => 1,
                 2 => 4,

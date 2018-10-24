@@ -204,7 +204,12 @@ impl Cpu {
                 };
                 4
             }
-            CPUState::Halt => 4,
+            CPUState::Halt => {
+                if mem.load_8(0xFFFF) & mem.load_8(0xFF0F) > 0 {
+                    self.state = CPUState::Running;
+                }
+                4
+            },
         }
     }
 
