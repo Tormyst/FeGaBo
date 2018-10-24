@@ -254,7 +254,7 @@ impl Cpu {
             ByteR::E => self.e = data,
             ByteR::H => self.h = data,
             ByteR::L => self.l = data,
-            ByteR::F => self.f = data,
+            ByteR::F => self.f = data & 0xF0,
             ByteR::IMM(_) => panic!("You cannot write to a immediate value"),
             ByteR::Mem(addr) => mem.write_8(self.read_16(addr), data),
         }
@@ -297,7 +297,7 @@ impl Cpu {
             WordR::PC => self.pc = val,
             WordR::AF => {
                 self.a = high;
-                self.f = low
+                self.f = low & 0xF0;
             }
             WordR::BC => {
                 self.b = high;
