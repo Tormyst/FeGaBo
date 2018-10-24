@@ -58,6 +58,7 @@ impl Cpu {
         self.push(WordR::PC, mem);
         mem.set_ime(false);
         self.pc = location;
+        self.state = CPUState::Running;
     }
 
     fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem) {
@@ -66,6 +67,7 @@ impl Cpu {
             NOP => {}
             HALT => self.state = CPUState::Halt,
             STOP => self.state = CPUState::Stop,
+            DAA => self.daa(),
 
             CPL => {
                 self.a = !self.a;
@@ -190,8 +192,6 @@ impl Cpu {
 
             DI => mem.set_ime(false),
             EI => mem.set_ime(true),
-
-            _ => panic!("Instruction {} not implemented.", opcode),
         }
     }
 
@@ -214,7 +214,7 @@ impl Cpu {
         // let mut flag = false;
         if self.print {
             // println!("CPU: {:0X?}", self);
-            println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
+            // println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
         }
         // Change as debugging needed.
         else if self.pc == 0x0100 {
@@ -320,6 +320,29 @@ impl Cpu {
             decode::OptFlag(None) => true,
             decode::OptFlag(Some((flag, state))) => self.read_flag(flag) == state,
         }
+    }
+
+    fn daa(&mut self) {
+        // Based on code from Eric Haskins
+        // https://ehaskins.com/2018-01-30%20Z80%20DAA/
+        let mut adjust = 0;
+        let neg = self.read_flag(Flag::N);
+        if (!neg && (self.a & 0x0F) > 0x09) || self.read_flag(Flag::H) {
+            adjust |= 0x06;
+        }
+        if (!neg && self.a > 0x99) || self.read_flag(Flag::C) {
+            adjust |= 0x60;
+            self.set_flag(Flag::C, true);
+        }
+        else {self.set_flag(Flag::C, false)}
+
+        match self.read_flag(Flag::N) {
+            true => self.a = self.a.wrapping_sub(adjust),
+            false => self.a = self.a.wrapping_add(adjust),
+        }
+        let zero = self.a == 0;
+        self.set_flag(Flag::H, false);
+        self.set_flag(Flag::Z, zero);
     }
 
     fn ret(&mut self, fl: decode::OptFlag, mem: &mut mem::Mem) {
