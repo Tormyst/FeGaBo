@@ -269,6 +269,9 @@ impl MemMapper for GbMapper {
                 if self.joypad & 0x20 > 0 {
                     self.joypad |= self.buttons.buttons();
                 }
+                if self.joypad & 0x0F > 0 {
+                    self.interupt_flag |= 0x10;
+                }
                 true
             },
             0xFF04...0xFF07 => self.timer.write(addr, data),
@@ -302,6 +305,7 @@ impl MemMapper for GbMapper {
         else if interupt_triggers & 0x01 > 0 { self.interupt_flag = self.interupt_flag & !0x01; Some(0x40) } // v blank
         else if interupt_triggers & 0x02 > 0 { self.interupt_flag = self.interupt_flag & !0x02; Some(0x48) } // Stat
         else if interupt_triggers & 0x04 > 0 { self.interupt_flag = self.interupt_flag & !0x04; Some(0x50) } // Timer
+        else if interupt_triggers & 0x10 > 0 { self.interupt_flag = self.interupt_flag & !0x10; Some(0x60) } // Timer
         else { None }
     }
 
@@ -418,6 +422,7 @@ impl Mem {
     }
 
     pub fn set_ime(&mut self, value: bool) {
+        println!("IME set to {}", value);
         self.ime = value;
     }
 
