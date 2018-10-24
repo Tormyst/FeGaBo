@@ -273,14 +273,14 @@ impl MemMapper for GbMapper {
             },
             0xFF04...0xFF07 => self.timer.write(addr, data),
             0xFF01...0xFF02 => true, // Not implemented serial
-            0xFF0F => {self.interupt_flag = data; true}
+            0xFF0F => {self.interupt_flag = data; println!("IF set to {:02X}", data); true}
             0xFF10...0xFF3F => true, // Audio device not implemented.
             0xFF40...0xFF45 => self.ppu.write(addr, data), // PPU state
             0xFF46 => self.dma(data),
             0xFF47...0xFF49 => self.gbp.write(addr, data), // Pallet for GB
             0xFF50 => {self.boot = self.boot || (data & 0x01) > 0; true},
             0xFF80...0xFFFE => {self.hram[addr as usize & 0x007F] = data; true}
-            0xFFFF => {self.interupt_enable = data; true},
+            0xFFFF => {self.interupt_enable = data; println!("IE set to {:02X}", data); true},
             _ => false,
         }
     }
@@ -299,9 +299,9 @@ impl MemMapper for GbMapper {
         self.interupt_flag |= self.timer.check_interupt();
         let interupt_triggers = self.interupt_flag & self.interupt_enable;
         if interupt_triggers == 0 { None }
-        else if interupt_triggers & 0x01 > 0 { Some(0x40) } // v blank
-        else if interupt_triggers & 0x02 > 0 { Some(0x48) } // Stat
-        else if interupt_triggers & 0x04 > 0 { Some(0x50) } // Stat
+        else if interupt_triggers & 0x01 > 0 { self.interupt_flag = self.interupt_flag & !0x01; Some(0x40) } // v blank
+        else if interupt_triggers & 0x02 > 0 { self.interupt_flag = self.interupt_flag & !0x02; Some(0x48) } // Stat
+        else if interupt_triggers & 0x04 > 0 { self.interupt_flag = self.interupt_flag & !0x04; Some(0x50) } // Timer
         else { None }
     }
 

@@ -213,8 +213,8 @@ impl Cpu {
         let (instruction, opcode, op_size, op_time) = decode::decode(self.pc, mem);
         // let mut flag = false;
         if self.print {
-            // println!("CPU: {:0X?}", self);
-            // println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
+            println!("CPU: {:0X?}", self);
+            println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
         }
         // Change as debugging needed.
         else if self.pc == 0x0100 {
@@ -263,7 +263,7 @@ impl Cpu {
     fn read_16(&mut self, reg: WordR) -> u16 {
         match reg {
             WordR::SP => self.sp,
-            WordR::SPP(offset) => self.sp.wrapping_add(offset as u16),
+            WordR::SPP(offset) => (self.sp as i16).wrapping_add(offset as i16) as u16,
             WordR::PC => self.pc,
             WordR::IMM(data) => data,
             WordR::HighC => 0xFF00 | (self.c as u16),
