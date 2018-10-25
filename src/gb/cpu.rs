@@ -74,8 +74,18 @@ impl Cpu {
                 self.set_flag(Flag::N, true);
                 self.set_flag(Flag::H, true);
             }
-            SCF => self.set_flag(Flag::C, true),
-            CCF => self.set_flag(Flag::C, false),
+            SCF => {
+                self.set_flag(Flag::C, true);
+                self.set_flag(Flag::N, false);
+                self.set_flag(Flag::H, false);
+            },
+            CCF => {
+                let c = self.read_flag(Flag::C);
+                self.set_flag(Flag::C, !c);
+                self.set_flag(Flag::N, false);
+                self.set_flag(Flag::H, false);
+            },
+
 
             RST(op) => {
                 self.push(WordR::PC, mem);
@@ -145,22 +155,24 @@ impl Cpu {
                 self.write_16(o, data)
             }
 
-            ADD8(o) => self.add(o, mem, false),
+            ADD8(o) => self.add(o, mem, false, false),
             ADD16(o1, o2) => self.add16(o1, o2),
             SPADD(o) => {
                 let data = self.spadd(o);
                 self.sp = data;
             }
-            ADC(o) => self.add(o, mem, true),
+            ADC(o) => self.add(o, mem, true, false),
 
-            SUB(o) => self.sub(o, mem, false),
-            SBC(o) => self.sub(o, mem, false),
+            SUB(o) => self.add(o, mem, false, true),
+            SBC(o) => self.add(o, mem, true, true),
 
             AND(o) => self.and(o, mem),
             OR(o) => self.or(o, mem),
             XOR(o) => self.xor(o, mem),
             CP(o) => {
-                self.cp(o, mem, false);
+                let old = self.a;
+                self.add(o, mem, false, true);
+                self.a = old;
             }
 
             JR(fl, o) => self.jr(fl, o),
@@ -168,13 +180,13 @@ impl Cpu {
 
             RL(op) => self.rl(op, mem),
             RLC(op) => self.rlc(op, mem),
-            RLA => self.rl(ByteR::A, mem),
-            RLCA => self.rlc(ByteR::A, mem),
+            RLA => {self.rl(ByteR::A, mem); self.set_flag(Flag::Z, false);},
+            RLCA => {self.rlc(ByteR::A, mem); self.set_flag(Flag::Z, false);},
 
             RR(op) => self.rr(op, mem),
             RRC(op) => self.rrc(op, mem),
-            RRA => self.rr(ByteR::A, mem),
-            RRCA => self.rrc(ByteR::A, mem),
+            RRA => {self.rr(ByteR::A, mem); self.set_flag(Flag::Z, false);},
+            RRCA => {self.rrc(ByteR::A, mem); self.set_flag(Flag::Z, false);},
 
             SLA(op) => self.sla(op, mem),
             SRA(op) => self.sra(op, mem),
@@ -397,7 +409,7 @@ impl Cpu {
         self.set_flag(Flag::C, false);
     }
 
-    fn add(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) {
+    fn add(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool, sub: bool) {
         let reg = self.read_8(reg, mem);
 
         let cin = match with_c {
@@ -410,13 +422,22 @@ impl Cpu {
             }
         };
 
-        let (data, cout) = self.a.overflowing_add(reg.wrapping_add(cin));
-        let h = (data & 0x0F) < ((reg & 0x0F) + cin);
+        let (reg_c, c_add_out) = reg.overflowing_add(cin);
+
+        let (data, cout) = match sub {
+            true => self.a.overflowing_sub(reg_c),
+            false => self.a.overflowing_add(reg_c),
+        };
+
+        let h = match sub {
+            true => (data & 0x0F) + (reg & 0x0F) + cin > 0x0F,
+            false => (data & 0x0F).wrapping_sub((reg & 0x0F) + cin) > 0x0F,
+        };
         let zero = data == 0;
         self.set_flag(Flag::Z, zero);
-        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::N, sub);
         self.set_flag(Flag::H, h);
-        self.set_flag(Flag::C, cout);
+        self.set_flag(Flag::C, cout || c_add_out);
         self.a = data;
     }
 
@@ -446,34 +467,6 @@ impl Cpu {
         self.set_flag(Flag::H, h);
         self.set_flag(Flag::C, c);
         result
-    }
-
-    fn sub(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) {
-        self.a = self.cp(reg, mem, with_c);
-    }
-
-    fn cp(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) -> u8 {
-        let reg = self.read_8(reg, mem);
-
-        let cin = match with_c {
-            false => 0,
-            true => {
-                match self.read_flag(Flag::C) {
-                    true => 1,
-                    false => 0,
-                }
-            }
-        };
-
-        let data = self.a.wrapping_sub(reg + cin);
-        let h = (data & 0x0F) < ((reg & 0x0F) + cin);
-        let zero = data == 0;
-        let cout = self.a < reg;
-        self.set_flag(Flag::Z, zero);
-        self.set_flag(Flag::N, true);
-        self.set_flag(Flag::H, h);
-        self.set_flag(Flag::C, cout);
-        data
     }
 
     fn jr(&mut self, fl: decode::OptFlag, o: i8) {
@@ -546,7 +539,7 @@ impl Cpu {
 
     fn sla(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         let data = self.read_8(reg.clone(), mem);
-        self.set_flag(Flag::C, data & 0xF0 != 0);
+        self.set_flag(Flag::C, (data & 0x80) > 0);
         let regval = data << 1;
 
         self.set_flag(Flag::Z, regval == 0);
@@ -557,8 +550,8 @@ impl Cpu {
 
     fn sra(&mut self, reg: ByteR, mem: &mut mem::Mem) {
         let data = self.read_8(reg.clone(), mem);
-        self.set_flag(Flag::C, data & 0x01 != 0);
-        let regval = data >> 1;
+        self.set_flag(Flag::C, (data & 0x01) > 0);
+        let regval = (data as i8 >> 1) as u8;
 
         self.set_flag(Flag::Z, regval == 0);
         self.set_flag(Flag::N, false);
