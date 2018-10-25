@@ -37,6 +37,21 @@ struct Gb {
     front_buffer: Arc<Mutex<Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>>>,
 }
 
+pub fn disasemble(rom: &str) {
+    use gb::decode;
+    use std::fs::File;
+    use std::io::Read;
+
+    match File::open(rom) {
+        Ok(mut file) => {
+            let mut buffer = Vec::new();
+            let size = file.read_to_end(&mut buffer).unwrap();
+            decode::disasemble(buffer);
+        }
+        Err(_) => eprintln!("File dose not exist"),
+    }
+}
+
 pub fn connect(roms: (String, Option<String>)) -> GbConnect {
     let (to_gb, from_main) = mpsc::channel();
     let (to_main, from_gb) = mpsc::channel();

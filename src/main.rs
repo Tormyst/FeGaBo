@@ -166,8 +166,14 @@ fn read_arguments() -> (String, std::option::Option<String>){
         (about: "A gameboy emulator writen in rust")
         (@arg ROM: +required "Sets the file to use as a gameboy cartrage")
         (@arg BOOTROM: "Sets the file to use as the bootrom")
-        (@arg debug: -d ... "Sets the level of debugging information")
+        // (@arg debug: -d ... "Sets the level of debugging information")
+        (@arg disassemble: -d "Disassemble the given file")
     ).get_matches();
+
+    if app.is_present("disassemble") {
+        gb::disasemble(app.value_of("ROM").unwrap());
+        std::process::exit(0);
+    }
 
     (String::from(app.value_of("ROM").unwrap()), match app.value_of("BOOTROM"){
         Some(bootrom) => Some(String::from(bootrom)),

@@ -294,15 +294,29 @@ macro_rules! imm16 {
 // Returns Opcode decoded, the number of bytes the instruction was
 // and the number of cycles the instruction takes.
 pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
-    use self::Op::*;
-    use self::ByteR::*;
-    use self::WordR::*;
     let op = mem.load_8(addr);
     // Figure out a way to avoid extra loads that will be pointless for
     // instructions that are not 3 bytes long.
     let op2 = mem.load_8(addr + 1);
     let op3 = mem.load_8(addr + 2);
+    decode_internal(op, op2, op3)
+}
 
+pub fn disasemble(mem: Vec<u8>) {
+    let mut pc = 0;
+    while pc < mem.len() - 2 {
+        let (opcode, instruction, increment, _time) = decode_internal(mem[pc],
+                                                                     mem[pc+1],
+                                                                     mem[pc+2]);
+        println!("0x{:04X}: {}    {}", pc, opcode, instruction);
+        pc += increment as usize;
+    }
+}
+
+fn decode_internal(op: u8, op2: u8, op3: u8) -> (OpCode, Op, u16, usize) {
+    use self::Op::*;
+    use self::ByteR::*;
+    use self::WordR::*;
     match op {
         0x00 => op!(op, NOP, 4),
         0x01 => op!(op, op2, op3, LD16(BC, imm16!(op2, op3)), 12),
@@ -575,11 +589,9 @@ pub fn decode(addr: u16, mem: &mut Mem) -> (OpCode, Op, u16, usize) {
         // 0xFD => No instruction,
         0xFE => op!(op, op2, CP(imm8!(op2)), 8),
         0xFF => op!(op, RST(0x38), 16),
-
         _ => {
-            panic!("Instruction {:02X} from {:04X} cannot be decoded.",
-                   op,
-                   addr)
+            eprintln!("Instruction {:02X} cannot be decoded.", op);
+            (OpCode::One(op), NOP, 1, 0)
         }
     }
 }
