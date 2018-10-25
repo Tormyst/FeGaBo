@@ -108,6 +108,10 @@ impl Cpu {
                 let data = self.read_16(o2);
                 mem.write_16(addr, data);
             }
+            SPLD(o) => {
+                let data = self.spadd(o);
+                self.write_16(WordR::HL,  data);
+            }
 
             INC8(o) => {
                 // setup
@@ -142,18 +146,10 @@ impl Cpu {
             }
 
             ADD8(o) => self.add(o, mem, false),
-            ADD16(o1, o2) => {
-                let src = self.read_16(o2);
-                let dest = self.read_16(o1.clone());
-
-                let h = ((src & 0x0FFF) + (dest & 0x0FFF)) > 0x0FFF;
-                let (result, c) = dest.overflowing_add(src);
-
-                self.write_16(o1, result);
-
-                self.set_flag(Flag::N, false);
-                self.set_flag(Flag::H, h);
-                self.set_flag(Flag::C, c);
+            ADD16(o1, o2) => self.add16(o1, o2),
+            SPADD(o) => {
+                let data = self.spadd(o);
+                self.sp = data;
             }
             ADC(o) => self.add(o, mem, true),
 
@@ -223,7 +219,7 @@ impl Cpu {
         }
         // Change as debugging needed.
         else if self.pc == 0x0100 {
-            self.print = true;
+            // self.print = true;
         }
 
         //Increment PC
@@ -268,7 +264,6 @@ impl Cpu {
     fn read_16(&mut self, reg: WordR) -> u16 {
         match reg {
             WordR::SP => self.sp,
-            WordR::SPP(offset) => (self.sp as i16).wrapping_add(offset as i16) as u16,
             WordR::PC => self.pc,
             WordR::IMM(data) => data,
             WordR::HighC => 0xFF00 | (self.c as u16),
@@ -415,7 +410,7 @@ impl Cpu {
             }
         };
 
-        let (data, cout) = self.a.overflowing_add(reg + cin);
+        let (data, cout) = self.a.overflowing_add(reg.wrapping_add(cin));
         let h = (data & 0x0F) < ((reg & 0x0F) + cin);
         let zero = data == 0;
         self.set_flag(Flag::Z, zero);
@@ -423,6 +418,34 @@ impl Cpu {
         self.set_flag(Flag::H, h);
         self.set_flag(Flag::C, cout);
         self.a = data;
+    }
+
+    fn add16(&mut self, o1: WordR, o2: WordR) {
+        let src = self.read_16(o2);
+        let dest = self.read_16(o1.clone());
+
+        let h = ((src & 0x0FFF) + (dest & 0x0FFF)) > 0x0FFF;
+        let (result, c) = dest.overflowing_add(src);
+
+        self.write_16(o1, result);
+
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, h);
+        self.set_flag(Flag::C, c);
+    }
+
+    fn spadd(&mut self, o: i8) -> u16 {
+        let offset = (o as i16) as u16;
+
+        let h = ((offset & 0x000F) + (self.sp & 0x000F)) > 0x000F;
+        let c = ((offset & 0x00FF) + (self.sp & 0x00FF)) > 0x00FF;
+        let result = self.sp.wrapping_add(offset);
+
+        self.set_flag(Flag::Z, false);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, h);
+        self.set_flag(Flag::C, c);
+        result
     }
 
     fn sub(&mut self, reg: ByteR, mem: &mut mem::Mem, with_c: bool) {

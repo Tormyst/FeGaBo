@@ -40,7 +40,6 @@ pub enum WordR {
     DE,
     HL,
     SP,
-    SPP(i8),
     PC,
     HLI,
     HLD,
@@ -58,7 +57,6 @@ impl fmt::Display for WordR {
             DE => write!(f, "DE"),
             HL => write!(f, "HL"),
             SP => write!(f, "SP"),
-            SPP(data) => write!(f, "SP{:+02X}", data),
             PC => write!(f, "PC"),
             HLI => write!(f, "HL+"),
             HLD => write!(f, "HL-"),
@@ -149,6 +147,7 @@ pub enum Op {
     LD8(ByteR, ByteR),
     LD16(WordR, WordR),
     LDMem(WordR, WordR),
+    SPLD(i8),
 
     INC8(ByteR),
     INC16(WordR),
@@ -158,6 +157,7 @@ pub enum Op {
 
     ADD8(ByteR),
     ADD16(WordR, WordR),
+    SPADD(i8),
 
     ADC(ByteR),
 
@@ -220,6 +220,7 @@ impl fmt::Display for Op {
             LD8(op1, op2) => write!(f, "LD {}, {}", op1, op2),
             LD16(op1, op2) => write!(f, "LD {}, {}", op1, op2),
             LDMem(op1, op2) => write!(f, "LD ({}), {}", op1, op2),
+            SPLD(o) => write!(f, "LD HL, SP+{}", o),
 
             AND(op) => write!(f, "AND {}", op),
             OR(op) => write!(f, "OR {}", op),
@@ -237,6 +238,7 @@ impl fmt::Display for Op {
 
             ADD8(o) => write!(f, "ADD {}", o),
             ADD16(o1, o2) => write!(f, "ADD {}, {}", o1, o2),
+            SPADD(o) => write!(f, "ADD SP, {}", o),
 
             ADC(o) => write!(f, "ADC {}", o),
 
@@ -564,7 +566,7 @@ fn decode_internal(op: u8, op2: u8, op3: u8) -> (OpCode, Op, u16, usize) {
         0xE5 => op!(op, PUSH(HL), 16),
         0xE6 => op!(op, op2, AND(imm8!(op2)), 8),
         0xE7 => op!(op, RST(0x20), 16),
-        0xE8 => op!(op, op2, ADD16(SP, imm16!(op2, 0xFF)), 16),
+        0xE8 => op!(op, op2, SPADD(op2 as i8), 16),
         0xE9 => op!(op, JP(OF_NONE, HL), 4),
         0xEA => op!(op, op2, op3, LD8(Mem(imm16!(op2, op3)), A), 16),
         // 0xEB => No instruction,
@@ -581,7 +583,7 @@ fn decode_internal(op: u8, op2: u8, op3: u8) -> (OpCode, Op, u16, usize) {
         0xF5 => op!(op, PUSH(AF), 16),
         0xF6 => op!(op, op2, OR(imm8!(op2)), 8),
         0xF7 => op!(op, RST(0x30), 16),
-        0xF8 => op!(op, op2, LD16(HL, SPP(op2 as i8)), 12),
+        0xF8 => op!(op, op2, SPLD(op2 as i8), 12),
         0xF9 => op!(op, LD16(SP, HL), 8),
         0xFA => op!(op, op2, op3, LD8(A, Mem(imm16!(op2, op3))), 16),
         0xFB => op!(op, EI, 4),
