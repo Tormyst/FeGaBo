@@ -9,6 +9,7 @@ mod timer;
 mod cm;
 
 const KB_8: usize = 0x2000;
+const KB_8_MASK: usize = 0x1FFF;
 const GAMEBOY_SCREEN_BUFFER_SIZE: u32 = GAMEBOY_WIDTH * GAMEBOY_HEIGHT * 3;
 
 pub struct Buttons {
@@ -233,10 +234,10 @@ impl MemMapper for GbMapper {
         match addr {
             0x0000...0x00FF => if !self.boot { self.boot_rom.read(addr) } else { (*self.cartrage).read(addr) }
             0x0000...0x7FFF => (*self.cartrage).read(addr),
-            0x8000...0x9FFF => Some(self.vram[addr as usize & 0x0FFF]),
+            0x8000...0x9FFF => Some(self.vram[addr as usize & KB_8_MASK]),
             0xA000...0xBFFF => (*self.cartrage).read_ram(addr),
-            0xC000...0xDFFF => Some(self.wram[addr as usize & 0x0FFF]),
-            0xE000...0xFDFF => Some(self.wram[addr as usize & 0x0FFF]),
+            0xC000...0xDFFF => Some(self.wram[addr as usize & KB_8_MASK]),
+            0xE000...0xFDFF => Some(self.wram[addr as usize & KB_8_MASK]),
             0xFE00...0xFE9F => self.oam.read(addr),
             // 0xFEA0...0xFEFF Not Used by anything.
             0xFF00 => Some(self.joypad), // Joypad
@@ -255,10 +256,10 @@ impl MemMapper for GbMapper {
         match addr {
             // Main table
             0x0000...0x7FFF => (*self.cartrage).write(addr, data),
-            0x8000...0x9FFF => {self.vram[addr as usize & 0x0FFF] = data; true}
+            0x8000...0x9FFF => {self.vram[addr as usize & KB_8_MASK] = data; true}
             0xA000...0xBFFF => (*self.cartrage).write_ram(addr, data),
-            0xC000...0xDFFF => {self.wram[addr as usize & 0x0FFF] = data; true}
-            0xE000...0xFDFF => {self.wram[addr as usize & 0x0FFF] = data; true}
+            0xC000...0xDFFF => {self.wram[addr as usize & KB_8_MASK] = data; true}
+            0xE000...0xFDFF => {self.wram[addr as usize & KB_8_MASK] = data; true}
             0xFE00...0xFE9F => self.oam.write(addr, data),
             // 0xFEA0...0xFEFF Not Usable.  Tetris write here.
             0xFF00 => { // Joypad
@@ -459,6 +460,7 @@ impl Mem {
 
     pub fn write_8(&mut self, addr: u16, data: u8) {
         // Look value up in memory map
+        // println!("Memory write to: {:04X} of data {:02X}", addr, data);
         if !self.map_holder.write(addr, data) {
             println!("Memory write failed for address: {:04X}", addr)
         }
