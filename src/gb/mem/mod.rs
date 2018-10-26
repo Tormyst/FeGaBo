@@ -264,10 +264,10 @@ impl MemMapper for GbMapper {
             // 0xFEA0...0xFEFF Not Usable.  Tetris write here.
             0xFF00 => { // Joypad
                 self.joypad = data & 0x30; // Only control bits.
-                if self.joypad & 0x20 == 0 {
+                if self.joypad & 0x10 == 0 {
                     self.joypad |= self.buttons.dpad();
                 }
-                if self.joypad & 0x10 == 0 {
+                if self.joypad & 0x20 == 0 {
                     self.joypad |= self.buttons.buttons();
                 }
                 if self.joypad & 0x0F < 0x0F {
