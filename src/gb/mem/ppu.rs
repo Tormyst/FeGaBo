@@ -95,12 +95,47 @@ impl PPU {
             }
         }
         self.lcdc = data;
-        println!("Setting LCDC: {:08b}", self.lcdc);
+        self.print_lcdc();
         true
     }
 
     pub fn lcdc_get(&self, offset: u8) -> bool {
         self.lcdc & (0x01 << offset) != 0
+    }
+
+    fn print_lcdc(&self) {
+        println!("LCDC: ");
+
+        if self.lcdc_get(7) {
+            if self.lcdc_get(0) {
+                println!("Background on using map {}", match
+                       self.lcdc_get(3) {true=> "9C00-9FFF", false=> "9800-9BFF"}
+                       );
+                if self.lcdc_get(5) {
+                    println!("Window on using map {}", match
+                        self.lcdc_get(6) {true=> "9C00-9FFF", false=> "9800-9BFF"}
+                        );
+                }
+                else {
+                    println!("Window off");
+                }
+                println!("Tilemap: {}", match
+                        self.lcdc_get(4) {true=> "8000-8FFF", false=> "8800-97FF"}
+                        );
+                if self.lcdc_get(1) {
+                    println!("{} OBJ on", match
+                             self.lcdc_get(2) {true=> "8x16", false=> "8x8"});
+                }
+                else {
+                    println!("OBJ off");
+                }
+            }
+            else { println!("Background and Window off"); }
+        }
+        else
+        {
+            println!("Screen off");
+        }
     }
 
     fn stat_get(&self, offset: u8) -> bool {
