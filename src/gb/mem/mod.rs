@@ -76,6 +76,13 @@ struct OamEntry{y:u8, x:u8, t:u8, a:u8}
 
 const DEFAULT_OAM_ENTRY: OamEntry = OamEntry{y:0, x:0, t:0, a:0};
 
+enum OamAtribute{
+    Priority,
+    YFlip,
+    XFlip,
+    Pallet,
+}
+
 impl OamEntry {
     fn write(&mut self, index: usize, data: u8) -> bool{
         match index {
@@ -95,6 +102,15 @@ impl OamEntry {
             2 => self.t,
             3 => self.a,
             _ => unreachable!("Only 2 bits used"),
+        }
+    }
+
+    fn read_artibute(&self, atribute: OamAtribute) -> bool {
+        match atribute {
+            OamAtribute::Priority => 0 < self.a & 1 << 7,
+            OamAtribute::YFlip => 0 < self.a & 1 << 6,
+            OamAtribute::XFlip => 0 < self.a & 1 << 5,
+            OamAtribute::Pallet => 0 < self.a & 1 << 4,
         }
     }
 }
@@ -119,6 +135,26 @@ impl Oam {
     fn write(&mut self, addr: u16, data: u8) -> bool {
         let (e, n) = Oam::entry_num(addr);
         self.data[e].write(n, data)
+    }
+
+    fn sprite_line(&self, scanline: u8) -> Vec<Option<u8>> {
+        let mut line = vec![None; GAMEBOY_WIDTH as usize];
+        let scanline = scanline + 9; // First 8 lines are not used
+
+        let mut sprites: Vec<_> = self.data.iter()
+            .filter(|obj| obj.y >= scanline && obj.y < scanline + 8)
+            .collect();
+        sprites.sort_by(|obj, obj2| obj.x.cmp(&obj2.x));
+        sprites.iter().take(10)
+            .for_each(|obj| {
+                for offset in 0..8 {
+                    let xpos = obj.x.wrapping_add(offset).wrapping_sub(8) ;
+                    if xpos < GAMEBOY_WIDTH as u8 && line[xpos as usize] == None {
+                        line[xpos as usize] = Some(255);
+                    }
+                }
+            });
+        line
     }
 }
 
@@ -313,11 +349,19 @@ impl MemMapper for GbMapper {
     fn render(&self, row: u8, buffer: &mut [u8]) {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy.wrapping_add(row);
+        let sprites = self.oam.sprite_line(row);
         for i in 0..GAMEBOY_WIDTH as u8 {
             let buff_offset = i as usize * 3;
+            if let Some(data) = sprites[i as usize] {
+                buffer[buff_offset] = 0;
+                buffer[buff_offset + 1] = 0;
+                buffer[buff_offset + 2] = 255;
+            }
+            else {
             self.render_background(x_offset.wrapping_add(i),
                                   y_offset,
                                   &mut buffer[buff_offset..buff_offset + 3]);
+            }
         }
     }
 
