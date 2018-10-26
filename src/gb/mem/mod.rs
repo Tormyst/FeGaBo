@@ -30,7 +30,7 @@ impl Buttons {
         if self.select { res |= 0x4; }
         if self.b { res |= 0x2; }
         if self.a { res |= 0x1; }
-        res
+        (!res & 0xF)
     }
 
     pub fn dpad(&self) -> u8 {
@@ -39,7 +39,7 @@ impl Buttons {
         if self.up { res |= 0x4; }
         if self.left { res |= 0x2; }
         if self.right { res |= 0x1; }
-        res
+        (!res & 0xF)
     }
 }
 
@@ -264,13 +264,13 @@ impl MemMapper for GbMapper {
             // 0xFEA0...0xFEFF Not Usable.  Tetris write here.
             0xFF00 => { // Joypad
                 self.joypad = data & 0x30; // Only control bits.
-                if self.joypad & 0x10 > 0 {
+                if self.joypad & 0x20 == 0 {
                     self.joypad |= self.buttons.dpad();
                 }
-                if self.joypad & 0x20 > 0 {
+                if self.joypad & 0x10 == 0 {
                     self.joypad |= self.buttons.buttons();
                 }
-                if self.joypad & 0x0F > 0 {
+                if self.joypad & 0x0F < 0x0F {
                     self.interupt_flag |= 0x10;
                 }
                 true
@@ -423,7 +423,7 @@ impl Mem {
     }
 
     pub fn set_ime(&mut self, value: bool) {
-        println!("IME set to {}", value);
+        // println!("IME set to {}", value);
         self.ime = value;
     }
 
@@ -445,7 +445,7 @@ impl Mem {
         }
         else {
             // Vblank, and send frame at 145
-            row == 145
+            row == 144
         }
     }
 
