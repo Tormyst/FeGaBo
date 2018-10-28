@@ -43,12 +43,26 @@ impl Buttons {
     }
 }
 
+use std::iter;
+macro_rules! get_sprite {
+    ($map:expr, $sprite_index:expr, $row:expr) => {
+        (0..8).rev()
+            .zip(iter::repeat($map.read(0x8000 + $sprite_index * 16 + $row * 2).unwrap()))
+            .zip(iter::repeat($map.read(0x8000 + $sprite_index * 16 + $row * 2 + 1).unwrap()))
+            .map(|((val, low), high)| {
+            let (low, high) = (((low >> val) & 0x01) > 0, ((high >> val) & 0x01) > 0);
+            (high as u8) * 2 + (low as u8)
+        })
+    }
+}
+
+use std::iter::Map;
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
     fn write(&mut self, addr: u16, data: u8) -> bool;
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>;
     fn update_input(&mut self, buttons: Buttons);
-    fn check_interupt(&mut self, ime: bool) -> Option<u16>;    
+    fn check_interupt(&mut self, ime: bool) -> Option<u16>;
     fn render(&self, row: u8, buffer: &mut [u8]);
     fn print_background_map(&self);
     fn print_sprite_table(&self);
@@ -350,17 +364,18 @@ impl MemMapper for GbMapper {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy.wrapping_add(row);
         let sprites = self.oam.sprite_line(row);
-        for i in 0..GAMEBOY_WIDTH as u8 {
-            let buff_offset = i as usize * 3;
-            if let Some(data) = sprites[i as usize] {
+        let background = self.background_line(row);
+        for i in 0..GAMEBOY_WIDTH as usize {
+            let buff_offset = i * 3;
+            if let Some(data) = sprites[i] {
                 buffer[buff_offset] = 0;
                 buffer[buff_offset + 1] = 0;
                 buffer[buff_offset + 2] = 255;
             }
             else {
-            self.render_background(x_offset.wrapping_add(i),
-                                  y_offset,
-                                  &mut buffer[buff_offset..buff_offset + 3]);
+                self.gbp.apply(gbp::Pallet::BGP,
+                               background[i],
+                               &mut buffer[buff_offset..buff_offset + 3]);
             }
         }
     }
@@ -401,43 +416,30 @@ impl MemMapper for GbMapper {
 }
 
 impl GbMapper {
-    fn render_background(&self, x:u8,y:u8, buffer: &mut [u8]){
-        //println!("Background x: {}, y: {}", x, y);
-        // Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
+    fn background_line(&self, scanline: u8) -> Vec<u8> {
+        let x_offset = self.ppu.scx;
+        let y_offset = self.ppu.scy.wrapping_add(scanline) as u16;
+        let map_x_offset = (x_offset & 0xF8) as u16; // offset rounded by 8
         let map_offset = match self.ppu.lcdc_get(3) {
             true => 0x9C00,
             false => 0x9800,
         };
 
-        let x:u16 = x as u16;
-        let y:u16 = y as u16;
+        let map_row = map_offset + ((y_offset / 8) * 32);
+        let sprite_offset = y_offset % 8;
 
-        let map_location = map_offset + ((y / 8) * 32) + (x / 8);
-        let map_data = self.read(map_location).unwrap();
-
-        // This + the next 15 are the sprite
-        let sprite_base = match self.ppu.lcdc_get(4) {
-            true => (map_data as u16 * 16) + 0x8000,
-            // This needs to be a signed offset
-            false => ((map_data as i16 * 16) as u16 + 0x9000),
-        };
-
-        // Move to the correct row
-        let x_offset = 7 - (x % 8);
-        let sprite_location = sprite_base + ((y % 8) * 2);
-
-        // print!("Sprite {:3X} at {:4X} offset {:X}", map_data, sprite_base, sprite_location);
-
-        let pixel_byte_low = self.read(sprite_location).unwrap();
-        let pixel_byte_high = self.read(sprite_location + 1).unwrap();
-        // let pixel_color = ( pixel_byte >> (bit_offset * 2)) & 0x03;
-        let pixel_color_low = (pixel_byte_low >> x_offset) & 0x01;
-        let pixel_color_high = (pixel_byte_high >> x_offset) & 0x01;
-        let pixel_color = pixel_color_low + (2 * pixel_color_high);
-
-        // println!(" color {:1X} from {:2X}", pixel_color, pixel_byte);
-
-        self.gbp.apply(gbp::Pallet::BGP, pixel_color, buffer);
+        (0..32)
+            .map(|sprite_on_line| self.read(map_row + ((sprite_on_line + map_x_offset) % 32)).unwrap())
+            .map(|map_data|
+                 match self.ppu.lcdc_get(4) {
+                     true => map_data as u16,
+                     // This needs to be a signed offset
+                     false => (255 + (map_data as i16)) as u16,
+                 })
+            .flat_map(|sprite_index| get_sprite!(self, sprite_index, sprite_offset))
+            .skip(x_offset as usize % 8)
+            .take(GAMEBOY_WIDTH as usize)
+            .collect()
     }
 }
 
