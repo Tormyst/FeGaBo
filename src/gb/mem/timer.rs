@@ -43,18 +43,20 @@ impl Timer {
     }
 
     pub fn tick(&mut self, time: usize) {
+        // DIV
+        self.subdiv += time;
+        if self.subdiv >= 256 {
+            self.subdiv -= 256;
+            self.div = self.div.wrapping_add(1);
+        };
+        // TIMA
         if (self.tac & 0x04) > 0 {
-            self.subdiv += time;
             self.subclock += time;
-            if self.subdiv > 64 {
-                self.subdiv -= 64;
-                self.div = self.div.wrapping_add(1);
-            };
-            let threshold = 16 * match self.tac & 0x03 {
-                0 => 64,
-                1 => 1,
-                2 => 4,
-                3 => 16,
+            let threshold = match self.tac & 0x03 {
+                0 => 1024,
+                1 => 16,
+                2 => 64,
+                3 => 256,
                 _ => unreachable!("value should only be two bytes"),
             };
             if self.subclock >= threshold {
