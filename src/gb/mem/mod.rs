@@ -151,7 +151,7 @@ impl Oam {
         self.data[e].write(n, data)
     }
 
-    fn sprite_line(&self, scanline: u8) -> Vec<Option<u8>> {
+    fn sprite_line(&self, map: &MemMapper, scanline: u8) -> Vec<Option<u8>> {
         let mut line = vec![None; GAMEBOY_WIDTH as usize];
         let scanline = scanline + 9; // First 8 lines are not used
 
@@ -161,10 +161,12 @@ impl Oam {
         sprites.sort_by(|obj, obj2| obj.x.cmp(&obj2.x));
         sprites.iter().take(10)
             .for_each(|obj| {
-                for offset in 0..8 {
+                let sprite = get_sprite!(map, obj.t as u16, 7 - (obj.y - scanline) as u16);
+
+                for (offset, color) in (0..8).zip(sprite) {
                     let xpos = obj.x.wrapping_add(offset).wrapping_sub(8) ;
                     if xpos < GAMEBOY_WIDTH as u8 && line[xpos as usize] == None {
-                        line[xpos as usize] = Some(255);
+                        line[xpos as usize] = Some(color);
                     }
                 }
             });
@@ -363,14 +365,14 @@ impl MemMapper for GbMapper {
     fn render(&self, row: u8, buffer: &mut [u8]) {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy.wrapping_add(row);
-        let sprites = self.oam.sprite_line(row);
+        let sprites = self.oam.sprite_line(self, row);
         let background = self.background_line(row);
         for i in 0..GAMEBOY_WIDTH as usize {
             let buff_offset = i * 3;
             if let Some(data) = sprites[i] {
-                buffer[buff_offset] = 0;
-                buffer[buff_offset + 1] = 0;
-                buffer[buff_offset + 2] = 255;
+                self.gbp.apply(gbp::Pallet::OBP1,
+                               data,
+                               &mut buffer[buff_offset..buff_offset + 3]);
             }
             else {
                 self.gbp.apply(gbp::Pallet::BGP,
