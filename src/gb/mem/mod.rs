@@ -422,7 +422,7 @@ impl GbMapper {
     fn background_line(&self, scanline: u8) -> Vec<u8> {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy.wrapping_add(scanline) as u16;
-        let map_x_offset = (x_offset & 0xF8) as u16; // offset rounded by 8
+        let map_x_offset = (x_offset >> 3) as u16; // offset divided by 8
         let map_offset = match self.ppu.lcdc_get(3) {
             true => 0x9C00,
             false => 0x9800,
