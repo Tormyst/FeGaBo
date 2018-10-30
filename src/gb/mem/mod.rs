@@ -7,6 +7,7 @@ mod ppu;
 mod gbp;
 mod timer;
 mod cm;
+use self::cm::CartrageMapper;
 
 const KB_8: usize = 0x2000;
 const KB_8_MASK: usize = 0x1FFF;
@@ -181,7 +182,7 @@ pub struct Mem {
 }
 
 pub struct GbMapper {
-    cartrage: Box<cm::CartrageMapper>,
+    cartrage: CartrageMapper,
     boot_rom: BootRom,
     vram: [u8; KB_8],
     wram: [u8; KB_8],
@@ -200,7 +201,7 @@ pub struct GbMapper {
 impl GbMapper {
     pub fn new(cartrage: String) -> Self {
         let mut mapper = GbMapper {
-            cartrage: cm::new(cartrage),
+            cartrage: CartrageMapper::new(cartrage),
             boot_rom: BootRom::new(vec![]),
             vram: [0; KB_8],
             wram: [0; KB_8],
@@ -252,7 +253,7 @@ impl GbMapper {
         println!("Boot rom loaded: {:X} bytes long", boot_size);
 
         GbMapper {
-            cartrage: cm::new(cartrage),
+            cartrage: CartrageMapper::new(cartrage),
             boot_rom: BootRom::new(buffer),
             vram: [0; KB_8],
             wram: [0; KB_8],
@@ -284,10 +285,10 @@ impl MemMapper for GbMapper {
     fn read(&self, addr: u16) -> Option<u8> {
         // Main table
         match addr {
-            0x0000...0x00FF => if !self.boot { self.boot_rom.read(addr) } else { (*self.cartrage).read(addr) }
-            0x0000...0x7FFF => (*self.cartrage).read(addr),
+            0x0000...0x00FF => if !self.boot { self.boot_rom.read(addr) } else { self.cartrage.read(addr) }
+            0x0000...0x7FFF => self.cartrage.read(addr),
             0x8000...0x9FFF => Some(self.vram[addr as usize & KB_8_MASK]),
-            0xA000...0xBFFF => (*self.cartrage).read_ram(addr),
+            0xA000...0xBFFF => self.cartrage.read_ram(addr),
             0xC000...0xDFFF => Some(self.wram[addr as usize & KB_8_MASK]),
             0xE000...0xFDFF => Some(self.wram[addr as usize & KB_8_MASK]),
             0xFE00...0xFE9F => self.oam.read(addr),
@@ -307,9 +308,9 @@ impl MemMapper for GbMapper {
     fn write(&mut self, addr: u16, data: u8) -> bool {
         match addr {
             // Main table
-            0x0000...0x7FFF => (*self.cartrage).write(addr, data),
+            0x0000...0x7FFF => self.cartrage.write(addr, data),
             0x8000...0x9FFF => {self.vram[addr as usize & KB_8_MASK] = data; true}
-            0xA000...0xBFFF => (*self.cartrage).write_ram(addr, data),
+            0xA000...0xBFFF => self.cartrage.write_ram(addr, data),
             0xC000...0xDFFF => {self.wram[addr as usize & KB_8_MASK] = data; true}
             0xE000...0xFDFF => {self.wram[addr as usize & KB_8_MASK] = data; true}
             0xFE00...0xFE9F => self.oam.write(addr, data),
