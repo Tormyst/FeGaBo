@@ -437,7 +437,7 @@ impl GbMapper {
                  match self.ppu.lcdc_get(4) {
                      true => map_data as u16,
                      // This needs to be a signed offset
-                     false => (256 + (map_data as i16)) as u16,
+                     false => (256 + ((map_data as i8) as i16)) as u16,
                  })
             .flat_map(|sprite_index| get_sprite!(self, sprite_index, sprite_offset))
             .skip(x_offset as usize % 8)
