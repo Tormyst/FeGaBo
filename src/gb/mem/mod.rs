@@ -152,7 +152,7 @@ impl Oam {
         self.data[e].write(n, data)
     }
 
-    fn sprite_line(&self, map: &MemMapper, scanline: u8) -> Vec<Option<u8>> {
+    fn sprite_line(&self, map: &MemMapper, scanline: u8) -> Vec<Option<(u8, bool, bool)>> {
         let mut line = vec![None; GAMEBOY_WIDTH as usize];
         let scanline = scanline + 9; // First 8 lines are not used
 
@@ -162,12 +162,25 @@ impl Oam {
         sprites.sort_by(|obj, obj2| obj.x.cmp(&obj2.x));
         sprites.iter().take(10)
             .for_each(|obj| {
-                let sprite = get_sprite!(map, obj.t as u16, 7 - (obj.y - scanline) as u16);
+                let yline = match obj.read_artibute(OamAtribute::YFlip) {
+                    false => 7 - (obj.y - scanline) as u16,
+                    true => (obj.y - scanline) as u16,
+                };
+
+                let sprite = get_sprite!(map, obj.t as u16, yline );
+                let pallet = obj.read_artibute(OamAtribute::Pallet);
+                let priority = obj.read_artibute(OamAtribute::Priority);
+
 
                 for (offset, color) in (0..8).zip(sprite) {
-                    let xpos = obj.x.wrapping_add(offset).wrapping_sub(8) ;
-                    if xpos < GAMEBOY_WIDTH as u8 && line[xpos as usize] == None {
-                        line[xpos as usize] = Some(color);
+                    if color > 0 { // Color 0 is clear for sprites
+                        let xpos = match obj.read_artibute(OamAtribute::XFlip) {
+                            false => obj.x.wrapping_add(offset),
+                            true => obj.x.wrapping_add(7 - offset),
+                        }.wrapping_sub(8);
+                        if xpos < GAMEBOY_WIDTH as u8 && line[xpos as usize] == None {
+                            line[xpos as usize] = Some((color, pallet, priority));
+                        }
                     }
                 }
             });
@@ -370,10 +383,22 @@ impl MemMapper for GbMapper {
         let background = self.background_line(row);
         for i in 0..GAMEBOY_WIDTH as usize {
             let buff_offset = i * 3;
-            if let Some(data) = sprites[i] {
-                self.gbp.apply(gbp::Pallet::OBP1,
-                               data,
+            if let Some((color, pallet, priority)) = sprites[i] {
+                if !priority || background[i] == 0 {
+                    self.gbp.apply(
+                        match pallet { 
+                            false => gbp::Pallet::OBP0, 
+                            true => gbp::Pallet::OBP1 
+                        },
+                        color,
+                        &mut buffer[buff_offset..buff_offset + 3],
+                    );
+                }
+                else {
+                self.gbp.apply(gbp::Pallet::BGP,
+                               background[i],
                                &mut buffer[buff_offset..buff_offset + 3]);
+                }
             }
             else {
                 self.gbp.apply(gbp::Pallet::BGP,
