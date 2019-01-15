@@ -57,7 +57,6 @@ macro_rules! get_sprite {
     }
 }
 
-use std::iter::Map;
 pub trait MemMapper {
     fn read(&self, addr: u16) -> Option<u8>;
     fn write(&mut self, addr: u16, data: u8) -> bool;
@@ -152,34 +151,59 @@ impl Oam {
         self.data[e].write(n, data)
     }
 
-    fn sprite_line(&self, map: &MemMapper, scanline: u8) -> Vec<Option<(u8, bool, bool)>> {
+    fn sprite_line(&self,
+                   map: &MemMapper,
+                   scanline: u8,
+                   is_8_by_16: bool) -> Vec<Option<(u8, bool, bool)>> {
         let mut line = vec![None; GAMEBOY_WIDTH as usize];
         let scanline = scanline + 9; // First 8 lines are not used
 
         let mut sprites: Vec<_> = self.data.iter()
-            .filter(|obj| obj.y >= scanline && obj.y < scanline + 8)
+            .filter(|obj|
+                    match is_8_by_16 {
+                        false => obj.y >= scanline,
+                        true => obj.y >= scanline - 8,
+                    } && obj.y < scanline + 8
+            )
             .collect();
         sprites.sort_by(|obj, obj2| obj.x.cmp(&obj2.x));
         sprites.iter().take(10)
             .for_each(|obj| {
+                let depth = match is_8_by_16 {
+                    false => obj.y.wrapping_sub(scanline),
+                    true => obj.y.wrapping_add(8).wrapping_sub(scanline),
+                };
+                println!("D: {}", depth);
+                assert!(depth < 16);
                 let yline = match obj.read_artibute(OamAtribute::YFlip) {
-                    false => 7 - (obj.y - scanline) as u16,
-                    true => (obj.y - scanline) as u16,
+                    false => {
+                        let max = match is_8_by_16 {
+                            false => 7u8,
+                            true => 15u8,
+                        };
+                        max.wrapping_sub(depth) as u16
+                    }
+                    true => depth as u16,
                 };
 
-                let sprite = get_sprite!(map, obj.t as u16, yline );
+                let sprite_index = match is_8_by_16 {
+                            false => obj.t,
+                            true => obj.t & 0xFE,
+                        } as u16;
+
+                let sprite = get_sprite!(map, sprite_index, yline);
                 let pallet = obj.read_artibute(OamAtribute::Pallet);
                 let priority = obj.read_artibute(OamAtribute::Priority);
-
 
                 for (offset, color) in (0..8).zip(sprite) {
                     if color > 0 { // Color 0 is clear for sprites
                         let xpos = match obj.read_artibute(OamAtribute::XFlip) {
                             false => obj.x.wrapping_add(offset),
                             true => obj.x.wrapping_add(7 - offset),
-                        }.wrapping_sub(8);
+                        }
+                        .wrapping_sub(8); // There are 8 pixels off of the screen to the left.
                         if xpos < GAMEBOY_WIDTH as u8 && line[xpos as usize] == None {
-                            line[xpos as usize] = Some((color, pallet, priority));
+                            line[xpos as usize] = Some((color, pallet, priority))
                         }
                     }
                 }
@@ -379,7 +403,8 @@ impl MemMapper for GbMapper {
     fn render(&self, row: u8, buffer: &mut [u8]) {
         let x_offset = self.ppu.scx;
         let y_offset = self.ppu.scy.wrapping_add(row);
-        let sprites = self.oam.sprite_line(self, row);
+        let sprite_size = self.ppu.lcdc_get(2);
+        let sprites = self.oam.sprite_line(self, row, sprite_size);
         let background = self.background_line(row);
         for i in 0..GAMEBOY_WIDTH as usize {
             let buff_offset = i * 3;
