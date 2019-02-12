@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use std::cmp::min;
 
 use ::{GAMEBOY_WIDTH, GAMEBOY_HEIGHT};
 
@@ -212,6 +213,97 @@ impl Oam {
     }
 }
 
+/*
+DUMMY
+*/
+struct Serial {
+    sb: u8,
+    sc: u8,
+    transfer_tick: usize,
+    buffered_interupt: bool,
+    out: u8,
+}
+
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+const SERIAL_FILE: &str = "serial.log";
+impl Serial {
+
+    pub fn new() -> Self {
+        let mut f = OpenOptions::new().create(true).append(true).open(SERIAL_FILE).unwrap();
+        write!(f,"Serial Log:");
+
+        Serial {
+            sb: 0x00,
+            sc: 0x00,
+            transfer_tick: 0,
+            buffered_interupt: false,
+            out: 0xFF,
+        }
+    }
+
+    pub fn read(&self, addr: u16) -> Option<u8> {
+        match addr {
+            0xFF01 => Some(self.sb),
+            0xFF02 => Some(self.sc),
+            _ => None
+        }
+    }
+
+    pub fn write(&mut self, addr: u16, data: u8) -> bool {
+        match addr {
+            0xFF01 => {self.sb = data;
+                       true},
+            0xFF02 => {
+                self.sc = data | (!0x81); // all other bits are read as one?
+                if self.sc & 0x80 > 0 {
+                    self.transfer_tick = 8;
+                    self.out = 0xFF;
+                }
+                true
+            },
+            _ => false
+        }
+    }
+
+    pub fn tick(&mut self, time: usize) {
+        if self.sc & 0x80 > 0 {
+            if self.sc & 0x01 > 0 && (time >= 8 && self.transfer_tick == 8) {
+                let to_shift = min(self.transfer_tick, time);
+                // Internal
+                let shifter = (self.sb as u16).checked_shl(8).unwrap() + (self.out as u16);
+                let rot = shifter.rotate_left(to_shift as u32);
+
+                self.out = (rot & 0xFF) as u8;
+                self.sb = ((rot >> 8) & 0xFF) as u8;
+                self.transfer_tick -= to_shift;
+            }
+            else {
+                // External assume very fast machine.
+                self.transfer_tick = 0;
+                let swap_temp = self.out;
+                self.out = self.sb;
+                self.sb = swap_temp;
+            }
+            if self.transfer_tick == 0 {
+                self.sc &= 0x7F; // clear transfer bit.
+                let mut f = OpenOptions::new().append(true).open(SERIAL_FILE).unwrap();
+                write!(f,"{}", self.out as char);
+                self.buffered_interupt = true;
+            }
+        }
+    }
+
+    pub fn check_interupt(&mut self) -> u8 {
+        if self.buffered_interupt {
+            self.buffered_interupt = false;
+            0x08
+        }
+        else { 0x00 }
+    }
+
+}
+
 pub struct Mem {
     map_holder: Box<MemMapper>,
     screen: Box<[u8; GAMEBOY_SCREEN_BUFFER_SIZE as usize]>,
@@ -225,6 +317,7 @@ pub struct GbMapper {
     wram: [u8; KB_8],
     boot: bool,
     oam: Oam,
+    serial: Serial,
     buttons: Buttons,
     joypad: u8,
     timer: timer::Timer,
@@ -244,6 +337,7 @@ impl GbMapper {
             wram: [0; KB_8],
             boot: true,
             oam: Oam::new(),
+            serial: Serial::new(),
             buttons: Buttons {a:false,b:false,start:false,select:false,up:false,down:false,left:false,right:false},
             joypad: 0,
             timer: timer::Timer::new(),
@@ -299,6 +393,7 @@ impl GbMapper {
             joypad: 0,
             timer: timer::Timer::new(),
             oam: Oam::new(),
+            serial: Serial::new(),
             hram: [0; 127],
             interupt_enable: 0,
             interupt_flag: 0,
@@ -331,6 +426,7 @@ impl MemMapper for GbMapper {
             0xFE00...0xFE9F => self.oam.read(addr),
             // 0xFEA0...0xFEFF Not Used by anything.
             0xFF00 => Some(self.joypad), // Joypad
+            0xFF01...0xFF02 => self.serial.read(addr),
             0xFF04...0xFF07 => self.timer.read(addr),
             0xFF0F => Some(self.interupt_flag),
             0xFF10...0xFF3F => Some(0xFF), // Audio device not implemented.
@@ -365,6 +461,7 @@ impl MemMapper for GbMapper {
                 }
                 true
             },
+            0xFF01...0xFF02 => self.serial.write(addr, data),
             0xFF04...0xFF07 => self.timer.write(addr, data),
             0xFF01...0xFF02 => true, // Not implemented serial
             0xFF0F => {self.interupt_flag = data; println!("IF set to {:02X}", data); true}
@@ -380,6 +477,7 @@ impl MemMapper for GbMapper {
     }
     fn time_passes(&mut self, time: usize) -> Option<Vec<u8>>{
         self.timer.tick(time);
+        self.serial.tick(time);
         self.ppu.time_passes(time)
     }
     fn update_input(&mut self, buttons: Buttons) {
@@ -391,11 +489,13 @@ impl MemMapper for GbMapper {
     fn check_interupt(&mut self, ime: bool) -> Option<u16> {
         self.interupt_flag |= self.ppu.interupt_update();
         self.interupt_flag |= self.timer.check_interupt();
+        self.interupt_flag |= self.serial.check_interupt();
         let interupt_triggers = self.interupt_flag & self.interupt_enable;
         if !ime || interupt_triggers == 0 { None }
         else if interupt_triggers & 0x01 > 0 { self.interupt_flag = self.interupt_flag & !0x01; Some(0x40) } // v blank
         else if interupt_triggers & 0x02 > 0 { self.interupt_flag = self.interupt_flag & !0x02; Some(0x48) } // Stat
         else if interupt_triggers & 0x04 > 0 { self.interupt_flag = self.interupt_flag & !0x04; Some(0x50) } // Timer
+        else if interupt_triggers & 0x08 > 0 { self.interupt_flag = self.interupt_flag & !0x08; Some(0x58) } // Serial
         else if interupt_triggers & 0x10 > 0 { self.interupt_flag = self.interupt_flag & !0x10; Some(0x60) } // Timer
         else { None }
     }
