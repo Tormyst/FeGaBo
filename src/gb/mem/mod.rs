@@ -268,7 +268,7 @@ impl Serial {
 
     pub fn tick(&mut self, time: usize) {
         if self.sc & 0x80 > 0 {
-            if self.sc & 0x01 > 0 && (time >= 8 && self.transfer_tick == 8) {
+            if self.sc & 0x01 > 0 {
                 let to_shift = min(self.transfer_tick, time);
                 // Internal
                 let shifter = (self.sb as u16).checked_shl(8).unwrap() + (self.out as u16);
@@ -280,10 +280,14 @@ impl Serial {
             }
             else {
                 // External assume very fast machine.
+                // Don't do anything
+                // there are problems with some games if assuming we are connected.
+                /*
                 self.transfer_tick = 0;
                 let swap_temp = self.out;
                 self.out = self.sb;
                 self.sb = swap_temp;
+                */
             }
             if self.transfer_tick == 0 {
                 self.sc &= 0x7F; // clear transfer bit.
