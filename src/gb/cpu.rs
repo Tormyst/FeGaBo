@@ -61,8 +61,9 @@ impl Cpu {
         self.state = CPUState::Running;
     }
 
-    fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem) {
+    fn execute_op(&mut self, opcode: decode::Op, mem: &mut mem::Mem)  -> usize{
         use gb::decode::Op::*;
+        let mut overtime = 0;
         match opcode {
             NOP => {}
             HALT => self.state = CPUState::Halt,
@@ -92,12 +93,12 @@ impl Cpu {
                 self.pc = op;
             }
 
-            RET(fl) => self.ret(fl, mem),
+            RET(fl) => overtime = self.ret(fl, mem),
             RETI => {
                 self.ret(decode::OptFlag(None), mem);
                 mem.set_ime(true);
             }
-            CALL(fl, o) => self.call(fl, o, mem),
+            CALL(fl, o) => overtime = self.call(fl, o, mem),
 
             PUSH(o) => self.push(o, mem),
             POP(o) => {
@@ -175,8 +176,8 @@ impl Cpu {
                 self.a = old;
             }
 
-            JR(fl, o) => self.jr(fl, o),
-            JP(fl, o) => self.jp(fl, o),
+            JR(fl, o) => overtime = self.jr(fl, o),
+            JP(fl, o) => overtime = self.jp(fl, o),
 
             RL(op) => self.rl(op, mem),
             RLC(op) => self.rlc(op, mem),
@@ -200,7 +201,8 @@ impl Cpu {
 
             DI => mem.set_ime(false),
             EI => mem.set_ime(true),
-        }
+        };
+        overtime
     }
 
     pub fn cycle(&mut self, mem: &mut mem::Mem) -> usize {
@@ -230,7 +232,7 @@ impl Cpu {
             println!("Executing 0x{:04X}: {}    {}", self.pc, instruction, opcode);
         }
         // Change as debugging needed.
-        else if self.pc == 0x0100 {
+        else if self.pc == 0xC353 && self.l == 0xF2 {
             // self.print = true;
         }
 
@@ -238,9 +240,7 @@ impl Cpu {
         self.pc += op_size;
 
         // Execute
-        self.execute_op(opcode, mem);
-
-        op_time
+        op_time + self.execute_op(opcode, mem)
     }
 
     fn read_8(&mut self, reg: ByteR, mem: &mem::Mem) -> u8 {
@@ -357,17 +357,21 @@ impl Cpu {
         self.set_flag(Flag::Z, zero);
     }
 
-    fn ret(&mut self, fl: decode::OptFlag, mem: &mut mem::Mem) {
+    fn ret(&mut self, fl: decode::OptFlag, mem: &mut mem::Mem) -> usize {
         if self.flag_condition(fl) {
             self.pc = self.pop(mem);
+            12 // If we return, we take 12 more cycles.
         }
+        else {0}
     }
 
-    fn call(&mut self, fl: decode::OptFlag, reg: WordR, mem: &mut mem::Mem) {
+    fn call(&mut self, fl: decode::OptFlag, reg: WordR, mem: &mut mem::Mem) -> usize {
         if self.flag_condition(fl) {
             self.push(WordR::PC, mem);
             self.pc = self.read_16(reg);
+            12
         }
+        else {0}
     }
 
     fn push(&mut self, reg: WordR, mem: &mut mem::Mem) {
@@ -469,16 +473,20 @@ impl Cpu {
         result
     }
 
-    fn jr(&mut self, fl: decode::OptFlag, o: i8) {
+    fn jr(&mut self, fl: decode::OptFlag, o: i8) -> usize{
         if self.flag_condition(fl) {
             self.pc = self.pc.wrapping_add(o as u16);
+            4
         }
+        else {0}
     }
 
-    fn jp(&mut self, fl: decode::OptFlag, o: WordR) {
+    fn jp(&mut self, fl: decode::OptFlag, o: WordR) -> usize {
         if self.flag_condition(fl) {
             self.pc = self.read_16(o);
+            4
         }
+        else {0}
     }
 
     fn rl(&mut self, reg: ByteR, mem: &mut mem::Mem) {
