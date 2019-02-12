@@ -26,7 +26,7 @@ impl Timer {
 
     pub fn write(&mut self, addr: u16, data: u8) -> bool {
         match addr {
-            0xFF04 => { self.div = 0x00; true},
+            0xFF04 => { self.div = 0x00; self.subdiv = 0x00; self.subclock = 0x00; true},
             0xFF05 => { self.tima = data; true},
             0xFF06 => { self.tma = data; true},
             0xFF07 => { self.tac = data; true},
@@ -43,31 +43,33 @@ impl Timer {
     }
 
     pub fn tick(&mut self, time: usize) {
-        // DIV
-        self.subdiv += time;
-        if self.subdiv >= 256 {
-            self.subdiv -= 256;
-            self.div = self.div.wrapping_add(1);
+        let threshold = match self.tac & 0x03 {
+            0 => 9,
+            1 => 3,
+            2 => 5,
+            3 => 7,
+            _ => unreachable!("value should only be two bytes"),
         };
-        // TIMA
-        if (self.tac & 0x04) > 0 {
-            self.subclock += time;
-            let threshold = match self.tac & 0x03 {
-                0 => 1024,
-                1 => 16,
-                2 => 64,
-                3 => 256,
-                _ => unreachable!("value should only be two bytes"),
-            };
-            if self.subclock >= threshold {
-                self.subclock -= threshold;
+        let mut tac_key = (self.subdiv >> threshold) & 0x01 > 0;
+        let tac_ena = (self.tac & 0x04) > 0;
+
+        for _ in 0..time {
+            // DIV
+            self.subdiv += 1;
+            let new_tac_key = (self.subdiv >> threshold) & 0x01 > 0;
+
+            if  tac_ena && tac_key && !new_tac_key {
+                //TIMA Increment
                 let (new_tima, overflow) = self.tima.overflowing_add(1);
                 self.tima = new_tima;
                 if overflow {
                     self.tima = self.tma;
                     self.buffered_interupt = true;
                 }
-            }
+            };
+
+            tac_key = new_tac_key;
         }
+        self.div = (self.subdiv >> 8 & 0xFF) as u8;
     }
 }
